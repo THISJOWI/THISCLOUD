@@ -1,0 +1,511 @@
+openapi: "3.0.3"
+info:
+  title: THISCLOUD Daemon API
+  description: |
+    Central API for THISCLOUD hypervisor OS. Exposed by `thiscloudd` on port 8080.
+    All resource endpoints are scoped to a tenant via `X-Tenant-Id` header (after T0.4).
+  version: "1.0.0"
+  contact:
+    name: THISJOWI
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local daemon
+
+security:
+  - BearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: OK
+
+  # ── VMs ──────────────────────────────────────────────
+  /vms:
+    get:
+      summary: List VMs
+      tags: [Compute]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: VM list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VmConfig"
+    post:
+      summary: Create VM
+      tags: [Compute]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VmCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/QuotaExceeded"
+
+  /vms/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: VM details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /vms/{id}/start:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Start VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: VM started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /vms/{id}/stop:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Stop VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: VM stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Networks ─────────────────────────────────────────
+  /networks:
+    get:
+      summary: List networks
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Network list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Network"
+    post:
+      summary: Create network
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Network"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /networks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get network
+      tags: [Network]
+      responses:
+        "200":
+          description: Network details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Network"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete network
+      tags: [Network]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Storage ──────────────────────────────────────────
+  /storage/pools:
+    get:
+      summary: List storage pools
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Pool list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoragePool"
+    post:
+      summary: Create storage pool
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoragePoolCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoragePool"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /storage/pools/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get storage pool
+      tags: [Storage]
+      responses:
+        "200":
+          description: Pool details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoragePool"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete storage pool
+      tags: [Storage]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Marketplace ──────────────────────────────────────
+  /marketplace/apps:
+    get:
+      summary: List marketplace apps
+      tags: [Marketplace]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: App list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketplaceApp"
+    post:
+      summary: Install marketplace app
+      tags: [Marketplace]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketplaceAppCreate"
+      responses:
+        "201":
+          description: Installed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketplaceApp"
+
+  /marketplace/apps/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get marketplace app
+      tags: [Marketplace]
+      responses:
+        "200":
+          description: App details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketplaceApp"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Uninstall marketplace app
+      tags: [Marketplace]
+      responses:
+        "200":
+          description: Uninstalled
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: Tenant scope (required after T0.4 multitenancy)
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    VmConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cpus:
+          type: integer
+          minimum: 1
+        memory_mb:
+          type: integer
+          minimum: 64
+        disk_path:
+          type: string
+        kernel:
+          type: string
+        kernel_args:
+          type: string
+        networks:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [running, stopped, error]
+
+    VmCreate:
+      type: object
+      required: [name, cpus, memory_mb]
+      properties:
+        name:
+          type: string
+        cpus:
+          type: integer
+          minimum: 1
+        memory_mb:
+          type: integer
+          minimum: 64
+        disk_path:
+          type: string
+        kernel:
+          type: string
+        kernel_args:
+          type: string
+        networks:
+          type: array
+          items:
+            type: string
+
+    Network:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cidr:
+          type: string
+          example: "10.0.0.0/24"
+        gateway:
+          type: string
+        vlan:
+          type: integer
+          nullable: true
+        dns:
+          type: array
+          items:
+            type: string
+
+    NetworkCreate:
+      type: object
+      required: [name, cidr, gateway]
+      properties:
+        name:
+          type: string
+        cidr:
+          type: string
+        gateway:
+          type: string
+        vlan:
+          type: integer
+        dns:
+          type: array
+          items:
+            type: string
+
+    StoragePool:
+      type: object
+      properties:
+        name:
+          type: string
+        pool_type:
+          type: string
+          enum: [linstor, drbd, local, ceph]
+        devices:
+          type: array
+          items:
+            type: string
+        replication:
+          type: integer
+          minimum: 1
+
+    StoragePoolCreate:
+      type: object
+      required: [name, pool_type, replication]
+      properties:
+        name:
+          type: string
+        pool_type:
+          type: string
+          enum: [linstor, drbd, local, ceph]
+        devices:
+          type: array
+          items:
+            type: string
+        replication:
+          type: integer
+          minimum: 1
+
+    MarketplaceApp:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        app_type:
+          type: string
+          enum: [iso, docker, cloud-init, turbokit, k8s]
+        source:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [installed, installing, error]
+
+    MarketplaceAppCreate:
+      type: object
+      required: [name, app_type, source]
+      properties:
+        name:
+          type: string
+        app_type:
+          type: string
+          enum: [iso, docker, cloud-init, turbokit, k8s]
+        source:
+          type: string
+        version:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    QuotaExceeded:
+      description: Tenant quota exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
