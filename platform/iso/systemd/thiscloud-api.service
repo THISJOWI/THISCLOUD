@@ -1,0 +1,19 @@
+[Unit]
+Description=THISCLOUD Orchestrator API
+After=network-online.target thiscloudd.service
+Wants=network-online.target
+Requires=thiscloudd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/thiscloud-api
+Restart=on-failure
+RestartSec=5
+Environment=THISCLOUD_API_BIND=0.0.0.0:8081
+Environment=THISCLOUD_API_URL=http://127.0.0.1:8080
+Environment=THISCLOUD_STATE_FILE=/var/lib/thiscloud/thiscloud.tfstate
+User=root
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

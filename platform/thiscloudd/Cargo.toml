@@ -1,0 +1,40 @@
+[package]
+name = "thiscloudd"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "thiscloudd"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+etcd-client = "0.14"
+axum = "0.7"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tower = { version = "0.5", features = ["util"] }
+
+[package.metadata.generate-rpm]
+package-name = "thiscloudd"
+license = "MIT"
+summary = "THISCLOUD Hypervisor OS daemon"
+description = "Core daemon of THISCLOUD: orchestrates compute, network, storage and marketplace modules over an HTTP API."
+vendor = "THISCLOUD"
+epoch = 0
+release = 1
+before-build = "../iso/scripts/prepare-rpm.sh"
+assets = [
+    { source = "../target/release/thiscloudd", dest = "/usr/sbin/thiscloudd", mode = "755" },
+    { source = "../iso/systemd/thiscloudd.service", dest = "/usr/lib/systemd/system/thiscloudd.service", mode = "644" },
+]

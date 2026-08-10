@@ -1,0 +1,22 @@
+[Unit]
+Description=THISCLOUD Web UI (Next.js)
+After=network-online.target thiscloud-api.service
+Wants=network-online.target
+Requires=thiscloud-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/share/thiscloud/web-ui
+ExecStart=/usr/bin/node /usr/share/thiscloud/web-ui/server.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+# Point the server-side API calls at the Go API server
+Environment=API_URL=http://127.0.0.1:8081
+User=root
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

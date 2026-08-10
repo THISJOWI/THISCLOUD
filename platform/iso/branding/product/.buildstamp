@@ -1,0 +1,5 @@
+[Main]
+Product=THISCLOUD
+Version=0.1.0
+BugURL=https://github.com/THISJOWI/THISCLOUD/issues
+IsFinal=True

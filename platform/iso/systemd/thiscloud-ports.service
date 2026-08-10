@@ -1,0 +1,12 @@
+[Unit]
+Description=THISCLOUD — open firewall ports
+After=network.target firewalld.service
+Requires=firewalld.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/thiscloud-open-ports
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

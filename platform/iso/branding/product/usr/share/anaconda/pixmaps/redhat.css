@@ -1,0 +1,58 @@
+/* THISCLOUD product-specific Anaconda CSS overrides.
+   Brand palette mirrors web-ui/src/app/globals.css:
+     --bg #0f1115, --card #171a21, --border #2a2f3a,
+     --fg #e6e9ef, --accent #3b82f6.
+   Text-only branding: no logo image, product name rendered as text. */
+
+@define-color product_bg_color #0f1115;
+@define-color product_card_color #171a21;
+@define-color product_accent_color #3b82f6;
+@define-color product_fg_color #e6e9ef;
+@define-color product_muted_color #8b93a3;
+
+/* Sidebar background */
+.logo-sidebar {
+    background-image: url('/usr/share/anaconda/pixmaps/sidebar-bg.png');
+    background-color: @product_bg_color;
+    background-repeat: no-repeat;
+}
+
+/* Sidebar product name */
+#overview-page .sidebar-link {
+    color: @product_fg_color;
+}
+
+/* Top bar */
+AnacondaSpokeWindow #nav-box {
+    background-color: @product_bg_color;
+    background-image: url('/usr/share/anaconda/pixmaps/topbar-bg.png');
+    background-repeat: no-repeat;
+    color: @product_fg_color;
+}
+
+/* Welcome spoke */
+#welcome-label {
+    color: @product_fg_color;
+}
+
+/* Highlight color for selected items */
+AnacondaSpokeWindow .spoke-selected {
+    background-color: @product_accent_color;
+}
+
+/* Selection highlight */
+selection {
+    background-color: @product_accent_color;
+}
+
+/* Primary buttons */
+button.default {
+    background-image: none;
+    background-color: @product_accent_color;
+    color: #ffffff;
+}
+
+/* Links and clickable text */
+link {
+    color: @product_accent_color;
+}

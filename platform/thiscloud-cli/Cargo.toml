@@ -1,0 +1,35 @@
+[package]
+name = "thiscloud-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "thiscloud"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+toml.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+thiscloudd = { path = "../thiscloudd" }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+
+[package.metadata.generate-rpm]
+package-name = "thiscloud"
+license = "MIT"
+summary = "THISCLOUD Hypervisor OS CLI"
+description = "Command-line client for THISCLOUD: init, status, join, vm, network, storage."
+vendor = "THISCLOUD"
+epoch = 0
+release = 1
+assets = [
+    { source = "../target/release/thiscloud", dest = "/usr/bin/thiscloud", mode = "755" },
+]

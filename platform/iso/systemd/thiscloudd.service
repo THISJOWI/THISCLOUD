@@ -1,0 +1,16 @@
+[Unit]
+Description=THISCLOUD Hypervisor OS daemon
+After=network-online.target etcd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/thiscloudd
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+User=root
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
