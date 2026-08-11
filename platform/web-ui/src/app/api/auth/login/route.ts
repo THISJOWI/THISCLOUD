@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { createSessionToken } from "@/lib/session";
 
 const execAsync = promisify(exec);
 
@@ -66,27 +67,41 @@ export async function POST(request: Request) {
 
   const role = isAdmin ? "admin" : "user";
 
-  // Create session token: base64(userId:role:expiry)
+  // Create a signed session token so role and expiry cannot be forged.
   const expiry = Date.now() + 24 * 60 * 60 * 1000;
-  const token = Buffer.from(`${username}:${role}:${expiry}`).toString("base64");
+  const csrfToken = crypto.randomUUID();
+  let token: string;
+  try {
+    token = await createSessionToken({
+      userId: username,
+      role,
+      expiry,
+      csrfToken,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Session signing is not configured" },
+      { status: 500 }
+    );
+  }
 
   const response = NextResponse.json({ success: true, role });
+  const secureCookie =
+    new URL(request.url).protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https";
 
-  // Self-hosted platform: always set secure=false for cookie compatibility
-  // (ISO runs behind nginx on HTTP port 80; HTTPS termination is external)
   response.cookies.set("session", token, {
     httpOnly: true,
-    secure: false,
+    secure: secureCookie,
     sameSite: "lax",
     path: "/",
     maxAge: 24 * 60 * 60,
   });
 
-  // CSRF token cookie (readable by JS for X-CSRF-Token header)
-  const csrfToken = crypto.randomUUID();
+  // Readable by JS so client mutations can echo it in X-CSRF-Token.
   response.cookies.set("csrf-token", csrfToken, {
     httpOnly: false,
-    secure: false,
+    secure: secureCookie,
     sameSite: "lax",
     path: "/",
     maxAge: 24 * 60 * 60,

@@ -42,6 +42,8 @@ pub struct MarketplaceApp {
     pub description: String,
     #[serde(default)]
     pub status: MarketplaceStatus,
+    #[serde(default)]
+    pub tenant_id: String,
 }
 
 impl MarketplaceApp {
@@ -60,6 +62,7 @@ impl MarketplaceApp {
             version,
             description,
             status: MarketplaceStatus::NotInstalled,
+            tenant_id: String::new(),
         }
     }
 }

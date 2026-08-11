@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifySessionToken } from "@/lib/session";
 
 // Routes that require authentication
-const PROTECTED_ROUTES = ["/admin", "/console"];
+const PROTECTED_ROUTES = ["/admin", "/console", "/api/proxy"];
 
 // Routes that are always public
 const PUBLIC_ROUTES = ["/", "/api/auth"];
 
-export function middleware(request: NextRequest) {
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+  return NextResponse.redirect(loginUrl);
+}
+
+function unauthorized() {
+  return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes
@@ -28,25 +39,12 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get("session")?.value;
 
   if (!session) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    return pathname.startsWith("/api/") ? unauthorized() : redirectToLogin(request);
   }
 
-  // Validate session token format: at least 3 colon-separated parts (user:role:expiry)
-  const parts = session.split(":");
-  if (parts.length < 3) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Check expiry (third part should be a numeric timestamp)
-  const expiry = Number(parts[2]);
-  if (!Number.isFinite(expiry) || Date.now() > expiry) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+  const claims = await verifySessionToken(session);
+  if (!claims) {
+    return pathname.startsWith("/api/") ? unauthorized() : redirectToLogin(request);
   }
 
   return NextResponse.next();

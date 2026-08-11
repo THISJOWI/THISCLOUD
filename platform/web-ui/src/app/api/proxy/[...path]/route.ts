@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { isMutation, verifySessionToken } from "@/lib/session";
 
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8081";
+const PUBLIC_PROXY_PATHS = new Set(["/healthz"]);
 
 /**
  * Server-side API proxy.
@@ -23,9 +25,27 @@ async function proxyRequest(
   // Read session cookie and forward as Authorization header
   const cookieStore = await cookies();
   const session = cookieStore.get("session")?.value;
+  const claims = await verifySessionToken(session);
+
+  if (!claims && !PUBLIC_PROXY_PATHS.has(targetPath)) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  if (claims && isMutation(request.method)) {
+    const headerToken = request.headers.get("x-csrf-token");
+    const cookieToken = cookieStore.get("csrf-token")?.value;
+    if (
+      !headerToken ||
+      !cookieToken ||
+      headerToken !== cookieToken ||
+      headerToken !== claims.csrfToken
+    ) {
+      return NextResponse.json({ error: "Invalid CSRF token" }, { status: 403 });
+    }
+  }
 
   const headers = new Headers();
-  if (session) {
+  if (session && claims) {
     headers.set("Authorization", `Bearer ${session}`);
   }
 

@@ -17,6 +17,8 @@ pub struct StoragePool {
     pub devices: Vec<String>,
     #[serde(default = "default_replication")]
     pub replication: u32,
+    #[serde(default)]
+    pub tenant_id: String,
 }
 
 fn default_replication() -> u32 {
@@ -30,6 +32,7 @@ impl StoragePool {
             pool_type,
             devices,
             replication,
+            tenant_id: String::new(),
         }
     }
 }

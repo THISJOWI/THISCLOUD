@@ -351,6 +351,19 @@ else
   echo "WARNING: web-ui not found in staging"
 fi
 
+# ── THISCLOUD Web UI secrets ────────────────────────────────────────
+echo "==> Configuring web-ui secrets"
+mkdir -p /etc/thiscloud
+if [ ! -f /etc/thiscloud/web-ui.env ]; then
+  SESSION_SECRET="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '\n')"
+  umask 077
+  cat > /etc/thiscloud/web-ui.env <<EOF
+SESSION_SECRET=${SESSION_SECRET}
+EOF
+  umask 022
+fi
+chmod 600 /etc/thiscloud/web-ui.env
+
 # ── Systemd services ────────────────────────────────────────────────
 echo "==> Installing systemd services"
 if [ -d /tmp/thiscloud-systemd ]; then

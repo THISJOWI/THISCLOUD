@@ -36,4 +36,20 @@ impl EtcdClient {
         self.client.clone().delete(key, Some(DeleteOptions::new())).await?;
         Ok(())
     }
+
+    /// List all key-value pairs under a prefix.
+    pub async fn list_prefix(&self, prefix: &str) -> anyhow::Result<Vec<(String, String)>> {
+        let resp = self
+            .client
+            .clone()
+            .get(prefix, Some(GetOptions::new().with_all_keys().with_prefix()))
+            .await?;
+        let mut out = Vec::new();
+        for kv in resp.kvs() {
+            let k = String::from_utf8_lossy(kv.key()).to_string();
+            let v = String::from_utf8_lossy(kv.value()).to_string();
+            out.push((k, v));
+        }
+        Ok(out)
+    }
 }

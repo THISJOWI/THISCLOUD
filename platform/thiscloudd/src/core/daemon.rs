@@ -1,4 +1,5 @@
 use super::{EventBus, Module, ModuleManager};
+use crate::auth::login::{self, LoginState};
 use crate::compute::http::{app as http_app, ApiState};
 use crate::compute::{
     CloudHypervisor, ComputeModule, HypervisorBackend, MemoryVmStore, MockHypervisor,
@@ -21,6 +22,16 @@ pub struct Daemon {
     event_bus: Arc<EventBus>,
     module_manager: Arc<Mutex<ModuleManager>>,
     http_router: axum::Router,
+}
+
+/// Generate a random hex secret for JWT when none is configured.
+fn random_secret() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    format!("{:032x}", t)
 }
 
 impl Daemon {
@@ -66,21 +77,40 @@ impl Daemon {
         let marketplace_router =
             marketplace_http_app(MarketplaceApiState::new(marketplace.clone()));
 
-        let http_router = http_app(ApiState::new(compute.clone()))
+        let resource_router = http_app(ApiState::new(compute.clone()))
             .merge(network_router)
             .merge(storage_router)
             .merge(marketplace_router);
 
-        // Apply auth middleware if configured
-        let http_router = if config.auth.enabled {
-            if let Some(ref secret) = config.auth.jwt_secret {
-                crate::auth::middleware::init_secret(secret.clone());
-                tracing::info!("Auth enabled (JWT)");
-            }
-            http_router.layer(axum::middleware::from_fn(crate::auth::middleware::jwt_auth))
+        // Build the full router: public login route + protected resource routes.
+        // THISCLOUD_AUTH_DISABLED=1 forces auth off regardless of config (dev mode).
+        let auth_enabled = {
+            let env_disabled = std::env::var("THISCLOUD_AUTH_DISABLED")
+                .map(|v| v == "1" || v == "true")
+                .unwrap_or(false);
+            config.auth.enabled && !env_disabled
+        };
+        let http_router = if auth_enabled {
+            let secret = config
+                .auth
+                .jwt_secret
+                .clone()
+                .unwrap_or_else(|| {
+                    tracing::warn!("No jwt_secret configured — generating random secret (tokens will not survive restart)");
+                    random_secret()
+                });
+            login::ensure_secret(&secret);
+            tracing::info!("Auth enabled (JWT)");
+
+            let login_state = LoginState::new(secret, config.auth.jwt_ttl_secs);
+            let login_router = login::router(login_state);
+
+            resource_router.layer(axum::middleware::from_fn(
+                crate::auth::middleware::jwt_auth,
+            )).merge(login_router)
         } else {
             tracing::warn!("Auth DISABLED — all endpoints open (dev mode)");
-            http_router
+            resource_router
         };
 
         let mut module_manager = ModuleManager::new();
@@ -138,8 +168,6 @@ impl Daemon {
         let mut manager = self.module_manager.lock().await;
         manager.start_all(&self.event_bus).await?;
 
-        // Write PID file for `thiscloud status` (best-effort; `/var/run` is not
-        // writable by unprivileged dev users, so failures are logged not fatal).
         match std::fs::write("/var/run/thiscloudd.pid", format!("{}\n", std::process::id())) {
             Ok(()) => tracing::debug!("PID file written to /var/run/thiscloudd.pid"),
             Err(e) => tracing::debug!("Could not write PID file: {e}"),
@@ -156,6 +184,27 @@ impl Daemon {
         Ok(())
     }
 
+    /// Serve with TLS when cert/key are configured.
+    pub async fn serve_https(
+        router: axum::Router,
+        bind: &str,
+        cert_path: &str,
+        key_path: &str,
+    ) -> anyhow::Result<()> {
+        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+            cert_path,
+            key_path,
+        )
+        .await?;
+
+        let addr: std::net::SocketAddr = bind.parse()?;
+        tracing::info!("THISCLOUD HTTPS API listening on {}", bind);
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(router.into_make_service())
+            .await?;
+        Ok(())
+    }
+
     pub async fn stop(&mut self) -> anyhow::Result<()> {
         let mut manager = self.module_manager.lock().await;
         manager.stop_all().await?;
@@ -169,8 +218,22 @@ impl Daemon {
 
         let router = self.http_router();
         let bind = format!("{}:{}", self.http_bind(), self.http_port());
+        let tls = self.config.auth.tls.clone();
         let http_task = tokio::spawn(async move {
-            if let Err(e) = Self::serve_http(router, &bind).await {
+            let result = if tls.enabled {
+                match (&tls.cert_path, &tls.key_path) {
+                    (Some(cert), Some(key)) => {
+                        Self::serve_https(router, &bind, cert, key).await
+                    }
+                    _ => {
+                        tracing::error!("TLS enabled but cert_path/key_path not configured");
+                        Ok(())
+                    }
+                }
+            } else {
+                Self::serve_http(router, &bind).await
+            };
+            if let Err(e) = result {
                 tracing::error!("HTTP server error: {:#}", e);
             }
         });
@@ -187,90 +250,54 @@ struct StorageModuleProxy;
 
 #[async_trait::async_trait]
 impl Module for StorageModuleProxy {
-    fn name(&self) -> &str {
-        "storage"
-    }
-
+    fn name(&self) -> &str { "storage" }
     async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
-        tracing::info!("Storage module started");
-        Ok(())
+        tracing::info!("Storage module started"); Ok(())
     }
-
     async fn stop(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Storage module stopped");
-        Ok(())
+        tracing::info!("Storage module stopped"); Ok(())
     }
-
-    fn is_running(&self) -> bool {
-        true
-    }
+    fn is_running(&self) -> bool { true }
 }
 
 struct MarketplaceModuleProxy;
 
 #[async_trait::async_trait]
 impl Module for MarketplaceModuleProxy {
-    fn name(&self) -> &str {
-        "marketplace"
-    }
-
+    fn name(&self) -> &str { "marketplace" }
     async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
-        tracing::info!("Marketplace module started");
-        Ok(())
+        tracing::info!("Marketplace module started"); Ok(())
     }
-
     async fn stop(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Marketplace module stopped");
-        Ok(())
+        tracing::info!("Marketplace module stopped"); Ok(())
     }
-
-    fn is_running(&self) -> bool {
-        true
-    }
+    fn is_running(&self) -> bool { true }
 }
 
 struct NetworkModuleProxy;
 
 #[async_trait::async_trait]
 impl Module for NetworkModuleProxy {
-    fn name(&self) -> &str {
-        "network"
-    }
-
+    fn name(&self) -> &str { "network" }
     async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
-        tracing::info!("Network module started");
-        Ok(())
+        tracing::info!("Network module started"); Ok(())
     }
-
     async fn stop(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Network module stopped");
-        Ok(())
+        tracing::info!("Network module stopped"); Ok(())
     }
-
-    fn is_running(&self) -> bool {
-        true
-    }
+    fn is_running(&self) -> bool { true }
 }
 
 struct ComputeModuleProxy;
 
 #[async_trait::async_trait]
 impl Module for ComputeModuleProxy {
-    fn name(&self) -> &str {
-        "compute"
-    }
-
+    fn name(&self) -> &str { "compute" }
     async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
-        tracing::info!("Compute module started");
-        Ok(())
+        tracing::info!("Compute module started"); Ok(())
     }
-
     async fn stop(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Compute module stopped");
-        Ok(())
+        tracing::info!("Compute module stopped"); Ok(())
     }
-
-    fn is_running(&self) -> bool {
-        true
-    }
+    fn is_running(&self) -> bool { true }
 }

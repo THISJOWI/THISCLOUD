@@ -24,6 +24,30 @@ paths:
         "200":
           description: OK
 
+  # ── Auth ──────────────────────────────────────────────
+  /auth/login:
+    post:
+      summary: Authenticate user and get JWT
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: JWT issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Missing username or password
+        "401":
+          description: Invalid credentials
+
   # ── VMs ──────────────────────────────────────────────
   /vms:
     get:
@@ -60,6 +84,10 @@ paths:
                 $ref: "#/components/schemas/VmConfig"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/QuotaExceeded"
 
@@ -84,6 +112,10 @@ paths:
       responses:
         "200":
           description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -100,6 +132,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -116,6 +152,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VmConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -155,6 +195,10 @@ paths:
                 $ref: "#/components/schemas/Network"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /networks/{id}:
     parameters:
@@ -177,6 +221,10 @@ paths:
       responses:
         "200":
           description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -216,6 +264,10 @@ paths:
                 $ref: "#/components/schemas/StoragePool"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /storage/pools/{name}:
     parameters:
@@ -242,6 +294,10 @@ paths:
       responses:
         "200":
           description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -301,6 +357,10 @@ paths:
       responses:
         "200":
           description: Uninstalled
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -310,6 +370,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: |
+        JWT token from POST /auth/login. Roles:
+        - admin: full access (wheel group members)
+        - operator: same as admin, cannot modify auth settings
+        - tenant_admin: full access within tenant
+        - tenant_user: read-only + create own resources
+        - auditor: read-only
 
   parameters:
     ResourceId:
@@ -356,6 +423,9 @@ components:
         status:
           type: string
           enum: [running, stopped, error]
+        tenant_id:
+          type: string
+          description: Owner tenant (set by server)
 
     VmCreate:
       type: object
@@ -484,6 +554,32 @@ components:
         version:
           type: string
 
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          maxLength: 32
+          pattern: "^[a-zA-Z0-9._-]+$"
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer token
+        role:
+          type: string
+          enum: [admin, tenant_user]
+        tenant_id:
+          type: string
+        expires_at:
+          type: integer
+          description: Unix timestamp
+
     Error:
       type: object
       properties:
@@ -505,6 +601,18 @@ components:
             $ref: "#/components/schemas/Error"
     QuotaExceeded:
       description: Tenant quota exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Insufficient role permissions
       content:
         application/json:
           schema:

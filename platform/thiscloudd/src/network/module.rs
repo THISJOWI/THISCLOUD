@@ -11,8 +11,9 @@ impl NetworkModule {
         Self { backend, store }
     }
 
-    pub async fn create_network(&mut self, net: &mut LogicalNetwork) -> anyhow::Result<()> {
-        for existing in self.store.list().await? {
+    pub async fn create_network(&mut self, tenant_id: &str, net: &mut LogicalNetwork) -> anyhow::Result<()> {
+        net.tenant_id = tenant_id.to_string();
+        for existing in self.store.list(tenant_id).await? {
             if existing.name == net.name {
                 anyhow::bail!("network '{}' already exists", net.name);
             }
@@ -20,27 +21,27 @@ impl NetworkModule {
         if net.id.is_empty() {
             net.id = uuid::Uuid::new_v4().to_string();
         }
-        self.store.put(net).await?;
+        self.store.put(tenant_id, net).await?;
         self.backend.create(net).await?;
         tracing::info!("Network created: {} ({})", net.name, net.id);
         Ok(())
     }
 
-    pub async fn get_network(&self, id: &str) -> anyhow::Result<LogicalNetwork> {
+    pub async fn get_network(&self, tenant_id: &str, id: &str) -> anyhow::Result<LogicalNetwork> {
         self.store
-            .get(id)
+            .get(tenant_id, id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("network {} not found", id))
     }
 
-    pub async fn list_networks(&self) -> anyhow::Result<Vec<LogicalNetwork>> {
-        self.store.list().await
+    pub async fn list_networks(&self, tenant_id: &str) -> anyhow::Result<Vec<LogicalNetwork>> {
+        self.store.list(tenant_id).await
     }
 
-    pub async fn delete_network(&mut self, id: &str) -> anyhow::Result<()> {
-        let net = self.get_network(id).await?;
+    pub async fn delete_network(&mut self, tenant_id: &str, id: &str) -> anyhow::Result<()> {
+        let net = self.get_network(tenant_id, id).await?;
         self.backend.delete(&net).await?;
-        self.store.delete(id).await?;
+        self.store.delete(tenant_id, id).await?;
         tracing::info!("Network deleted: {}", net.name);
         Ok(())
     }
@@ -68,7 +69,5 @@ impl crate::core::Module for NetworkModule {
 }
 
 impl NetworkModule {
-    pub fn publish_event(&self, _event_bus: &EventBus, _event: Event) {
-        // Reserved: emits events once HTTP layer is wired.
-    }
+    pub fn publish_event(&self, _event_bus: &EventBus, _event: Event) {}
 }

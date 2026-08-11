@@ -27,6 +27,8 @@ pub struct VmConfig {
     pub networks: Vec<String>,
     #[serde(default = "stopped")]
     pub status: VmStatus,
+    #[serde(default)]
+    pub tenant_id: String,
 }
 
 fn stopped() -> VmStatus {
@@ -52,6 +54,7 @@ impl VmConfig {
             kernel_args: String::new(),
             networks,
             status: VmStatus::Stopped,
+            tenant_id: String::new(),
         }
     }
 }

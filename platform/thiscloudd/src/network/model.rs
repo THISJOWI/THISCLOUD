@@ -21,6 +21,8 @@ pub struct LogicalNetwork {
     pub dns: Vec<String>,
     #[serde(default)]
     pub status: NetworkStatus,
+    #[serde(default)]
+    pub tenant_id: String,
 }
 
 impl LogicalNetwork {
@@ -33,6 +35,7 @@ impl LogicalNetwork {
             vlan: None,
             dns: Vec::new(),
             status: NetworkStatus::Created,
+            tenant_id: String::new(),
         }
     }
 }

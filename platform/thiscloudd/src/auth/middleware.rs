@@ -1,4 +1,6 @@
 use axum::body::Body;
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::http::{HeaderMap, Request};
 use axum::middleware::Next;
@@ -74,6 +76,27 @@ pub async fn jwt_auth(
     req.extensions_mut().insert(AuthContext { claims });
 
     Ok(next.run(req).await)
+}
+
+/// Axum extractor that pulls the tenant_id from the auth context.
+/// Falls back to empty string (global scope) when auth middleware is disabled.
+#[derive(Debug, Clone)]
+pub struct TenantContext {
+    pub tenant_id: String,
+}
+
+#[axum::async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for TenantContext {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let tenant_id = parts
+            .extensions
+            .get::<AuthContext>()
+            .map(|ctx| ctx.tenant_id().to_string())
+            .unwrap_or_default();
+        Ok(TenantContext { tenant_id })
+    }
 }
 
 /// Extract Bearer token from Authorization header.

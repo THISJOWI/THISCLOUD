@@ -12,6 +12,7 @@ fn test_vm_config_roundtrip() {
         kernel_args: "console=ttyS0".to_string(),
         networks: vec!["br0".to_string()],
         status: VmStatus::Stopped,
+        tenant_id: String::new(),
     };
 
     let json = serde_json::to_string(&config).unwrap();

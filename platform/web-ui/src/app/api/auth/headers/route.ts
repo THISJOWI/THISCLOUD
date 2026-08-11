@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { verifySessionToken } from "@/lib/session";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -7,6 +8,11 @@ export async function GET() {
 
   if (!session) {
     return NextResponse.json({});
+  }
+
+  const claims = await verifySessionToken(session);
+  if (!claims) {
+    return NextResponse.json({}, { status: 401 });
   }
 
   // Forward the session as an Authorization header to the backend
