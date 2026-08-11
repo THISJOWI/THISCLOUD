@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod compute;
 pub mod config;
 pub mod core;

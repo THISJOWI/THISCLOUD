@@ -71,6 +71,18 @@ impl Daemon {
             .merge(storage_router)
             .merge(marketplace_router);
 
+        // Apply auth middleware if configured
+        let http_router = if config.auth.enabled {
+            if let Some(ref secret) = config.auth.jwt_secret {
+                crate::auth::middleware::init_secret(secret.clone());
+                tracing::info!("Auth enabled (JWT)");
+            }
+            http_router.layer(axum::middleware::from_fn(crate::auth::middleware::jwt_auth))
+        } else {
+            tracing::warn!("Auth DISABLED — all endpoints open (dev mode)");
+            http_router
+        };
+
         let mut module_manager = ModuleManager::new();
         module_manager.register(Box::new(ComputeModuleProxy));
         module_manager.register(Box::new(NetworkModuleProxy));
