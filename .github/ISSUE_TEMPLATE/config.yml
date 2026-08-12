@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/THISJOWI/THISCLOUD/discussions
+    about: Ask questions, share setups, and discuss ideas
+  - name: Security Vulnerabilities
+    url: https://github.com/THISJOWI/THISCLOUD/security/advisories
+    about: Please report security vulnerabilities privately
