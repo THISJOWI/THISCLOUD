@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -45,3 +46,93 @@ jobs:
         working-directory: platform/web-ui
       - run: npm run lint
         working-directory: platform/web-ui
+
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: stoplightio/spectral-action@v0.8.2
+        with:
+          file_glob: docs/api/openapi.yaml
+          spectral_ruleset: .spectral.yaml
+          spectral_ruleset_file: true
+          fail_severity: error
+
+  # ISO build runs only on tags (v*). Requires self-hosted AlmaLinux 9 x86_64 runner
+  # with: 8+ GB RAM, 50+ GB disk, tools pre-installed (lorax, xorriso, createrepo_c, musl-cross)
+  iso-build:
+    needs: [rust, go, web-ui]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, almalinux, x64]
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify AlmaLinux 9 builder
+        run: |
+          cat /etc/almalinux-release || cat /etc/redhat-release
+          uname -m
+          free -h
+          df -h /data
+
+      - name: Check required tools
+        run: |
+          for tool in curl cpio createrepo_c xorriso implantisomd5 lorax rustup cargo go node; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "::error::Missing required tool: $tool"
+              exit 1
+            fi
+            echo "ok: $tool -> $(command -v $tool)"
+          done
+
+      - name: Check musl cross-compiler
+        run: |
+          if command -v x86_64-linux-musl-gcc >/dev/null 2>&1; then
+            echo "ok: x86_64-linux-musl-gcc -> $(command -v x86_64-linux-musl-gcc)"
+          elif command -v musl-gcc >/dev/null 2>&1; then
+            echo "ok: musl-gcc -> $(command -v musl-gcc)"
+          else
+            echo "::error::Missing musl cross-compiler (x86_64-linux-musl-gcc or musl-gcc)"
+            exit 1
+          fi
+
+      - name: Ensure AlmaLinux base ISO exists
+        run: |
+          ALMAISO="/data/AlmaLinux-9-latest-x86_64-minimal.iso"
+          if [ ! -f "$ALMAISO" ]; then
+            echo "::error::Base ISO not found at $ALMAISO"
+            echo "Download with: curl -fL -o $ALMAISO https://repo.almalinux.org/almalinux/9/isos/x86_64/AlmaLinux-9-latest-x86_64-minimal.iso"
+            exit 1
+          fi
+          echo "Base ISO found: $(ls -lh $ALMAISO)"
+
+      - name: Build ISO
+        env:
+          ALMAISO: /data/AlmaLinux-9-latest-x86_64-minimal.iso
+          OUT: /data/thiscloud-iso
+        run: |
+          cd platform
+          bash iso/scripts/build-iso.sh
+
+      - name: Verify ISO output
+        run: |
+          ISO_PATH="/data/thiscloud-iso/ThisCloud-${VERSION#v}-x86_64.iso"
+          if [ ! -f "$ISO_PATH" ]; then
+            echo "::error::ISO not found at $ISO_PATH"
+            exit 1
+          fi
+          echo "ISO built: $(ls -lh $ISO_PATH)"
+          echo "ISO_PATH=$ISO_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload ISO to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          files: /data/thiscloud-iso/ThisCloud-${{ github.ref_name }}*.iso
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

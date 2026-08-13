@@ -28,7 +28,7 @@ ALMAISO="${ALMAISO:-/data/AlmaLinux-9-latest-x86_64-minimal.iso}"
 OUT="${OUT:-/data/thiscloud-iso}"
 REPO="iso/repo"
 RPM_DIR="$REPO/thiscloud"
-VERSION="0.1.0"
+VERSION="${VERSION:-0.1.0}"
 
 # Check required tools
 for tool in curl cpio createrepo_c xorriso implantisomd5; do

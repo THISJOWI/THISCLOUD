@@ -31,7 +31,7 @@ KS_FILE="${KS_FILE:-iso/kickstart/thiscloud.ks}"
 REPO_DIR="${REPO_DIR:-iso/repo}"
 PRODUCT_IMG="${PRODUCT_IMG:-iso/product.img}"
 VOLID="THISCLOUD"
-VERSION="0.1.0"
+VERSION="${VERSION:-0.1.0}"
 
 # ── Preflight checks ────────────────────────────────────────────────
 for tool in xorriso cpio gzip implantisomd5; do
