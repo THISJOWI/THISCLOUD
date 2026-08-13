@@ -19,15 +19,12 @@ fn start_etcd(port: u16, data_dir: &str) -> Child {
 
 async fn wait_ready(endpoint: &str) -> bool {
     for _ in 0..100 {
-        match etcd_client::Client::connect([endpoint], None).await {
-            Ok(mut c) => {
-                if let Ok(resp) = c.status().await {
-                    if resp.header().is_some() {
-                        return true;
-                    }
+        if let Ok(mut c) = etcd_client::Client::connect([endpoint], None).await {
+            if let Ok(resp) = c.status().await {
+                if resp.header().is_some() {
+                    return true;
                 }
             }
-            Err(_) => {}
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
@@ -41,6 +38,7 @@ async fn test_etcd_put_get() {
 
     if !wait_ready(endpoint).await {
         let _ = child.kill();
+        let _ = child.wait();
         eprintln!("etcd not ready, skipping test");
         return;
     }
@@ -59,6 +57,7 @@ async fn test_etcd_put_get() {
     assert_eq!(v2.as_deref(), Some("value2"));
 
     let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[tokio::test]
@@ -68,6 +67,7 @@ async fn test_etcd_get_missing() {
 
     if !wait_ready(endpoint).await {
         let _ = child.kill();
+        let _ = child.wait();
         eprintln!("etcd not ready, skipping test");
         return;
     }
@@ -79,6 +79,7 @@ async fn test_etcd_get_missing() {
     assert_eq!(v, None);
 
     let _ = child.kill();
+    let _ = child.wait();
 }
 
 #[tokio::test]
@@ -88,6 +89,7 @@ async fn test_etcd_delete() {
 
     if !wait_ready(endpoint).await {
         let _ = child.kill();
+        let _ = child.wait();
         eprintln!("etcd not ready, skipping test");
         return;
     }
@@ -106,4 +108,5 @@ async fn test_etcd_delete() {
     assert_eq!(v, None);
 
     let _ = child.kill();
+    let _ = child.wait();
 }
