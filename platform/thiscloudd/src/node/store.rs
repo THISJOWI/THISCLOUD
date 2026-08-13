@@ -28,7 +28,9 @@ impl NodeStore for MemoryNodeStore {
     }
 
     async fn list(&self) -> anyhow::Result<Vec<Node>> {
-        Ok(self.nodes.lock().unwrap().values().cloned().collect())
+        let mut nodes: Vec<Node> = self.nodes.lock().unwrap().values().cloned().collect();
+        nodes.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(nodes)
     }
 
     async fn delete(&self, id: &str) -> anyhow::Result<()> {
