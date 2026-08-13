@@ -30,7 +30,7 @@ impl Default for AuthConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct TlsConfig {
     /// Enable TLS on the HTTP listener
     #[serde(default)]
@@ -39,14 +39,4 @@ pub struct TlsConfig {
     pub cert_path: Option<String>,
     /// Path to the PEM-encoded private key
     pub key_path: Option<String>,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            cert_path: None,
-            key_path: None,
-        }
-    }
 }

@@ -63,7 +63,7 @@ fn test_network_config_defaults() {
 #[test]
 fn test_etcd_config_defaults() {
     let config = thiscloudd::config::EtcdConfig::default();
-    assert_eq!(config.embedded, true);
+    assert!(config.embedded);
     assert_eq!(config.port, 2379);
     assert_eq!(config.peer_port, 2380);
     assert_eq!(config.data_dir, "/var/lib/thiscloud/etcd");
@@ -108,7 +108,7 @@ overlay_type = "geneve"
 
     assert_eq!(config.cluster.name, "thiscloud-prod");
     assert_eq!(config.cluster.nodes.len(), 1);
-    assert_eq!(config.cluster.etcd.embedded, true);
+    assert!(config.cluster.etcd.embedded);
     assert_eq!(config.cluster.etcd.quota_backend, "8GB");
     assert_eq!(config.storage.pools.len(), 1);
     assert_eq!(config.storage.pools[0].name, "ssd-pool");

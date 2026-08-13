@@ -25,7 +25,7 @@ impl LoginState {
 }
 
 pub fn ensure_secret(secret: &str) {
-    let _ = init_secret(secret.to_string());
+    init_secret(secret.to_string());
 }
 
 pub fn router(state: LoginState) -> Router {
