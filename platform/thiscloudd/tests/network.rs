@@ -12,3 +12,9 @@ mod test_network_module;
 
 #[path = "core/test_network_http.rs"]
 mod test_network_http;
+
+#[path = "core/test_network_router.rs"]
+mod test_network_router;
+
+#[path = "core/test_network_floating.rs"]
+mod test_network_floating;

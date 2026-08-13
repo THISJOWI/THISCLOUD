@@ -6,6 +6,10 @@ pub mod store;
 
 pub use backend::{MockNetworkBackend, NetworkBackend, OvnNetworkBackend};
 pub use http::{app as http_app, NetworkApiState};
-pub use model::{LogicalNetwork, NetworkStatus};
+pub use model::{DhcpServer, FloatingIp, LogicalNetwork, NetworkStatus, VirtualRouter};
 pub use module::NetworkModule;
-pub use store::{EtcdNetworkStore, MemoryNetworkStore, NetworkStore};
+pub use store::{
+    DhcpStore, EtcdDhcpStore, EtcdFloatingIpStore, EtcdNetworkStore, EtcdRouterStore,
+    FloatingIpStore, MemoryDhcpStore, MemoryFloatingIpStore, MemoryNetworkStore,
+    MemoryRouterStore, NetworkStore, RouterStore,
+};
