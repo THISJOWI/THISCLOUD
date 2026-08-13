@@ -15,8 +15,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install protoc + etcd
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler etcd-server
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: platform
