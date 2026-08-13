@@ -24,7 +24,7 @@ const SECRET: &str = "test-secret";
 
 /// Idempotent JWT secret init (OnceLock: first call wins, same secret used everywhere).
 fn init() {
-    let _ = init_secret(SECRET.to_string());
+    init_secret(SECRET.to_string());
 }
 
 fn make_token(tenant_id: &str, exp: usize) -> String {

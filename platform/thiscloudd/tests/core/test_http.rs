@@ -290,7 +290,7 @@ async fn test_http_quota_violation_returns_409() {
     use thiscloudd::quota::QuotaModule;
 
     const SECRET: &str = "quota-test-secret";
-    let _ = init_secret(SECRET.to_string());
+    init_secret(SECRET.to_string());
 
     let token = encode_jwt(
         &Claims {

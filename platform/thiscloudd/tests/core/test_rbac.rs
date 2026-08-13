@@ -20,7 +20,7 @@ use tower::ServiceExt;
 const SECRET: &str = "test-secret";
 
 fn init() {
-    let _ = init_secret(SECRET.to_string());
+    init_secret(SECRET.to_string());
 }
 
 fn make_token(role: Role, tenant_id: &str) -> String {
