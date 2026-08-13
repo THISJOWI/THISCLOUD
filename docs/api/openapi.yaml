@@ -687,6 +687,317 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ── Network VPC (T2.1) ──────────────────────────────
+  /api/v1/network/routers:
+    get:
+      summary: List virtual routers
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Router list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VirtualRouter"
+    post:
+      summary: Create virtual router
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VirtualRouter"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualRouter"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /api/v1/network/routers/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get virtual router
+      tags: [Network]
+      responses:
+        "200":
+          description: Router details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualRouter"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete virtual router
+      tags: [Network]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/network/dhcp:
+    get:
+      summary: List DHCP/DNS servers
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: DHCP server list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DhcpServer"
+    post:
+      summary: Create DHCP/DNS server
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DhcpServer"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpServer"
+
+  /api/v1/network/dhcp/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get DHCP/DNS server
+      tags: [Network]
+      responses:
+        "200":
+          description: DHCP server details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DhcpServer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete DHCP/DNS server
+      tags: [Network]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/network/floating-ips:
+    get:
+      summary: List floating IPs
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Floating IP list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FloatingIp"
+    post:
+      summary: Allocate floating IP
+      tags: [Network]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FloatingIp"
+      responses:
+        "201":
+          description: Allocated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FloatingIp"
+
+  /api/v1/network/floating-ips/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get floating IP
+      tags: [Network]
+      responses:
+        "200":
+          description: Floating IP details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FloatingIp"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Deallocate floating IP
+      tags: [Network]
+      responses:
+        "200":
+          description: Deallocated
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── S3 (T3.2) ───────────────────────────────────────
+  /api/v1/s3/buckets:
+    get:
+      summary: List S3 buckets
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Bucket list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/S3Bucket"
+    post:
+      summary: Create S3 bucket
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/S3Bucket"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/S3Bucket"
+        "409":
+          $ref: "#/components/responses/QuotaExceeded"
+
+  /api/v1/s3/buckets/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get S3 bucket
+      tags: [Storage]
+      responses:
+        "200":
+          description: Bucket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/S3Bucket"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete S3 bucket
+      tags: [Storage]
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/s3/credentials:
+    get:
+      summary: List S3 access keys
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "200":
+          description: Access key list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/S3AccessKey"
+    post:
+      summary: Issue S3 credentials
+      tags: [Storage]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/S3AccessKey"
+
+  # ── Metrics (T5.1) ──────────────────────────────────
+  /api/v1/metrics:
+    get:
+      summary: Prometheus metrics scrape endpoint
+      tags: [Observability]
+      responses:
+        "200":
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /api/v1/metrics/push:
+    post:
+      summary: Push a metric (daemon/UI)
+      tags: [Observability]
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Metric"
+      responses:
+        "200":
+          description: Pushed
+
   # ── Marketplace ──────────────────────────────────────
   /api/v1/marketplace/apps:
     get:
@@ -1225,6 +1536,112 @@ components:
           type: string
         version:
           type: string
+
+    VirtualRouter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        net_id:
+          type: string
+        external_net_id:
+          type: string
+        ha:
+          type: boolean
+          default: false
+        tenant_id:
+          type: string
+        status:
+          type: string
+          enum: [created, deleted]
+
+    DhcpServer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        net_id:
+          type: string
+        pool_start:
+          type: string
+        pool_end:
+          type: string
+        dns:
+          type: array
+          items:
+            type: string
+        tenant_id:
+          type: string
+        status:
+          type: string
+          enum: [created, deleted]
+
+    FloatingIp:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        ip:
+          type: string
+        vm_id:
+          type: string
+        net_id:
+          type: string
+        tenant_id:
+          type: string
+
+    S3Bucket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        tenant_id:
+          type: string
+        created_at:
+          type: integer
+          description: UNIX epoch seconds
+
+    S3AccessKey:
+      type: object
+      properties:
+        access_key:
+          type: string
+        secret_key:
+          type: string
+        user:
+          type: string
+        tenant_id:
+          type: string
+
+    Metric:
+      type: object
+      required: [name, value, metric_type]
+      properties:
+        name:
+          type: string
+          example: thiscloud_vms
+        value:
+          type: number
+          format: double
+        metric_type:
+          type: string
+          enum: [counter, gauge]
+        labels:
+          type: object
+          additionalProperties:
+            type: string
 
     TenantQuota:
       type: object
