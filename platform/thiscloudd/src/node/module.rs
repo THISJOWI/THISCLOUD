@@ -23,7 +23,7 @@ impl NodeModule {
     }
 
     /// Effective state: a node that hasn't heartbeated within its TTL is offline.
-    fn effective_state(node: &Node) -> NodeState {
+    pub fn effective_state(node: &Node) -> NodeState {
         if node.state == NodeState::Draining {
             return NodeState::Draining;
         }
@@ -66,6 +66,27 @@ impl NodeModule {
 
     pub async fn is_empty(&self) -> anyhow::Result<bool> {
         Ok(self.store.list().await?.is_empty())
+    }
+
+    /// Number of nodes currently heartbeating within their TTL (HA quorum input).
+    pub async fn online_count(&self) -> anyhow::Result<u64> {
+        Ok(self
+            .store
+            .list()
+            .await?
+            .iter()
+            .filter(|n| Self::effective_state(n) == NodeState::Online)
+            .count() as u64)
+    }
+
+    /// Total number of registered nodes (HA quorum denominator).
+    pub async fn registered_count(&self) -> anyhow::Result<u64> {
+        Ok(self.store.list().await?.len() as u64)
+    }
+
+    /// Effective (TTL-based) state of a single node.
+    pub async fn node_state(&self, id: &str) -> anyhow::Result<Option<NodeState>> {
+        Ok(self.store.get(id).await?.map(|n| Self::effective_state(&n)))
     }
 
     pub async fn delete(&mut self, id: &str) -> anyhow::Result<()> {

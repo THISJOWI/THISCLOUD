@@ -62,6 +62,11 @@ pub struct NicReq {
     pub tap: String,
 }
 
+#[derive(Deserialize)]
+pub struct MigrateReq {
+    pub target_node: String,
+}
+
 pub fn app(state: ApiState) -> Router {
     let read = Router::new()
         .route("/vms", get(list_vms))
@@ -80,6 +85,7 @@ pub fn app(state: ApiState) -> Router {
         .route("/vms/:id/restore", post(restore_vm))
         .route("/vms/:id/clone", post(clone_vm))
         .route("/vms/:id/resize", post(resize_vm))
+        .route("/vms/:id/migrate", post(migrate_vm))
         .route("/vms/:id/disks", put(attach_disk))
         .route("/vms/:id/disks/:disk_id", delete(detach_disk))
         .route("/vms/:id/nics", put(attach_nic))
@@ -215,6 +221,19 @@ async fn resize_vm(
     let mut module = state.module.lock().await;
     let vm = module
         .resize_vm(&ctx.tenant_id, &id, req.cpus, req.memory_mb)
+        .await?;
+    Ok(Json(vm))
+}
+
+async fn migrate_vm(
+    State(state): State<ApiState>,
+    ctx: TenantContext,
+    Path(id): Path<String>,
+    Json(req): Json<MigrateReq>,
+) -> Result<Json<VmConfig>, AppError> {
+    let mut module = state.module.lock().await;
+    let vm = module
+        .migrate_vm(&ctx.tenant_id, &id, &req.target_node)
         .await?;
     Ok(Json(vm))
 }

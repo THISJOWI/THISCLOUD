@@ -23,6 +23,8 @@ fn test_vm_config_roundtrip() {
         affinity: Vec::new(),
         anti_affinity: Vec::new(),
         image: String::new(),
+        ha: false,
+        migrations: 0,
     };
 
     let json = serde_json::to_string(&config).unwrap();

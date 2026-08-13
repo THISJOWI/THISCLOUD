@@ -12,3 +12,6 @@ mod test_http;
 
 #[path = "core/test_vm_lifecycle.rs"]
 mod test_vm_lifecycle;
+
+#[path = "core/test_ha_orchestration.rs"]
+mod test_ha_orchestration;

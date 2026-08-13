@@ -99,6 +99,14 @@ pub enum VmCommands {
         #[arg(long, default_value = "0")]
         memory: u32,
     },
+    /// Live-migrate a VM to another cluster node (HA)
+    Migrate {
+        /// VM ID or name
+        vm: String,
+        /// Destination node ID
+        #[arg(long)]
+        target_node: String,
+    },
     /// Attach a data disk to a VM
     AttachDisk {
         /// VM ID or name
@@ -332,6 +340,18 @@ pub async fn run_vm_command(command: VmCommands) -> anyhow::Result<()> {
                 anyhow::bail!("API error: {}", msg);
             }
             println!("VM resized: {}", vm);
+        }
+        VmCommands::Migrate { vm, target_node } => {
+            let resp = client
+                .post(format!("{}/vms/{}/migrate", base, vm))
+                .json(&json!({ "target_node": target_node }))
+                .send()
+                .await?;
+            if !resp.status().is_success() {
+                let msg = api_error_message(resp).await;
+                anyhow::bail!("API error: {}", msg);
+            }
+            println!("VM migrated: {} -> {}", vm, target_node);
         }
         VmCommands::AttachDisk {
             vm,

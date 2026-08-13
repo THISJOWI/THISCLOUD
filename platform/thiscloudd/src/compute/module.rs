@@ -3,7 +3,7 @@ use crate::compute::vmstore::VmStore;
 use crate::compute::HypervisorBackend;
 use crate::core::{Event, EventBus};
 use crate::image::ImageModule;
-use crate::node::NodeModule;
+use crate::node::{model::NodeState, NodeModule};
 use crate::quota::model::ResourceDelta;
 use crate::quota::QuotaModule;
 use std::sync::Arc;
@@ -16,6 +16,8 @@ pub struct ComputeModule {
     quota: Option<Arc<Mutex<QuotaModule>>>,
     nodes: Option<Arc<Mutex<NodeModule>>>,
     images: Option<Arc<Mutex<ImageModule>>>,
+    ha_enabled: bool,
+    ha_quorum: u32,
 }
 
 impl ComputeModule {
@@ -26,7 +28,17 @@ impl ComputeModule {
             quota: None,
             nodes: None,
             images: None,
+            ha_enabled: false,
+            ha_quorum: 0,
         }
+    }
+
+    /// Enable automatic HA failover (T1.4): `quorum` is the minimum number of
+    /// online nodes required before a failed node's VMs are migrated away.
+    pub fn with_ha(mut self, enabled: bool, quorum: u32) -> Self {
+        self.ha_enabled = enabled;
+        self.ha_quorum = quorum;
+        self
     }
 
     /// Enable quota enforcement for this module (T0.5).
@@ -363,6 +375,160 @@ impl ComputeModule {
         let vm = self.get_vm(tenant_id, id).await?;
         let url = self.backend.console_url(&vm).await?;
         Ok(ConsoleInfo { url })
+    }
+
+    // ── T1.4: HA — live migration + automatic failover ──────────────
+
+    /// Live-migrate a VM to `target_node`. Running VMs are migrated in memory
+    /// state to the target; stopped VMs only move placement (shared storage).
+    /// The VM keeps its id, disks, networks and IP — only `node` and the
+    /// `migrations` counter change.
+    pub async fn migrate_vm(
+        &mut self,
+        tenant_id: &str,
+        id: &str,
+        target_node: &str,
+    ) -> anyhow::Result<VmConfig> {
+        if target_node.is_empty() {
+            anyhow::bail!("target_node is required for migration");
+        }
+        let mut vm = self.get_vm(tenant_id, id).await?;
+        if vm.node == target_node {
+            anyhow::bail!("VM {} is already placed on node {}", vm.name, target_node);
+        }
+
+        let old_node = vm.node.clone();
+        match self.nodes.clone() {
+            Some(nodes_arc) => {
+                let mut nodes = nodes_arc.lock().await;
+                // Reserve capacity on the destination first (validates online).
+                nodes.reserve(target_node, vm.cpus, vm.memory_mb).await?;
+                // Live-migrate memory state when running; placement-only otherwise.
+                if vm.status == VmStatus::Running {
+                    if let Err(e) = self.backend.migrate(&vm, target_node).await {
+                        nodes.release(target_node, vm.cpus, vm.memory_mb).await?;
+                        return Err(e);
+                    }
+                }
+                if !old_node.is_empty() {
+                    nodes.release(&old_node, vm.cpus, vm.memory_mb).await?;
+                }
+            }
+            None => {
+                // No node registry wired (dev): just move placement.
+                if vm.status == VmStatus::Running {
+                    self.backend.migrate(&vm, target_node).await?;
+                }
+            }
+        }
+
+        vm.node = target_node.to_string();
+        vm.migrations += 1;
+        self.store.put(tenant_id, &vm).await?;
+        tracing::info!(
+            "VM migrated: {} ({} -> {}) migrations={}",
+            vm.name,
+            old_node,
+            vm.node,
+            vm.migrations
+        );
+        Ok(vm)
+    }
+
+    /// Automatic HA scan: relocate every HA-enrolled running VM whose node is
+    /// no longer heartbeating to a healthy node. Requires quorum (`online >=
+    /// max(ha_quorum, registered/2+1)`) to avoid split-brain. Returns the ids
+    /// of the VMs that were moved.
+    pub async fn failover_scan(&mut self) -> anyhow::Result<Vec<String>> {
+        if !self.ha_enabled || self.ha_quorum == 0 {
+            return Ok(Vec::new());
+        }
+        let Some(nodes_arc) = self.nodes.clone() else {
+            return Ok(Vec::new());
+        };
+        let mut nodes = nodes_arc.lock().await;
+        let online = nodes.online_count().await?;
+        let registered = nodes.registered_count().await?;
+        let quorum = std::cmp::max(self.ha_quorum as u64, registered / 2 + 1);
+        if online < quorum {
+            tracing::warn!(
+                "HA failover scan skipped: online={} < quorum={} (registered={})",
+                online,
+                quorum,
+                registered
+            );
+            return Ok(Vec::new());
+        }
+
+        let vms = self.store.list("").await?;
+        let mut moved = Vec::new();
+        for mut vm in vms
+            .into_iter()
+            .filter(|v| v.ha && v.status == VmStatus::Running && !v.node.is_empty())
+        {
+            let state = nodes.node_state(&vm.node).await?;
+            match state {
+                // Healthy nodes keep their VMs; draining nodes are handled by
+                // the operator draining the node first.
+                Some(NodeState::Online) | Some(NodeState::Draining) => continue,
+                // Offline (TTL expired) or gone from the registry: fail over.
+                Some(NodeState::Offline) | None => {}
+            }
+            let target = match nodes
+                .best_fit(vm.cpus, vm.memory_mb, &vm.affinity, &vm.anti_affinity)
+                .await
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!(
+                        "HA failover: no destination for VM {} ({}): {:#}",
+                        vm.name,
+                        vm.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+            // Second-line guard: never relocate onto the failed node itself.
+            if target == vm.node {
+                continue;
+            }
+            if let Err(e) = nodes.reserve(&target, vm.cpus, vm.memory_mb).await {
+                tracing::warn!(
+                    "HA failover: could not reserve {} for VM {}: {:#}",
+                    target,
+                    vm.name,
+                    e
+                );
+                continue;
+            }
+            let old_node = vm.node.clone();
+            match self.backend.migrate(&vm, &target).await {
+                Ok(()) => {
+                    nodes.release(&old_node, vm.cpus, vm.memory_mb).await?;
+                    vm.node = target;
+                    vm.migrations += 1;
+                    self.store.put(&vm.tenant_id, &vm).await?;
+                    tracing::info!(
+                        "HA failover: VM {} moved {} -> {} (migrations={}, ip/state preserved)",
+                        vm.name,
+                        old_node,
+                        vm.node,
+                        vm.migrations
+                    );
+                    moved.push(vm.id.clone());
+                }
+                Err(e) => {
+                    nodes.release(&target, vm.cpus, vm.memory_mb).await?;
+                    tracing::error!(
+                        "HA failover: migrate of VM {} failed: {:#}",
+                        vm.name,
+                        e
+                    );
+                }
+            }
+        }
+        Ok(moved)
     }
 }
 

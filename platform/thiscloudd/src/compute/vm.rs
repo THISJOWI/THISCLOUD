@@ -84,6 +84,13 @@ pub struct VmConfig {
     /// id. Derived disk_path when empty.
     #[serde(default)]
     pub image: String,
+    /// Enrolled in automatic failover: restarted/migrated on node outage (T1.4).
+    #[serde(default)]
+    pub ha: bool,
+    /// Number of times the VM has been migrated/failed over (idempotent counter,
+    /// proves the VM identity — disks, network, IP — survives migration).
+    #[serde(default)]
+    pub migrations: u64,
 }
 
 fn stopped() -> VmStatus {
@@ -120,6 +127,8 @@ impl VmConfig {
             affinity: Vec::new(),
             anti_affinity: Vec::new(),
             image: String::new(),
+            ha: false,
+            migrations: 0,
         }
     }
 }

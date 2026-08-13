@@ -38,6 +38,8 @@ pub struct Daemon {
     event_bus: Arc<EventBus>,
     module_manager: Arc<Mutex<ModuleManager>>,
     node_module: Arc<Mutex<NodeModule>>,
+    compute_module: Arc<Mutex<ComputeModule>>,
+    ha_interval_secs: u64,
     http_router: axum::Router,
 }
 
@@ -76,7 +78,8 @@ impl Daemon {
             ComputeModule::new(backend, Box::new(MemoryVmStore::default()))
                 .with_quota(quota_module.clone())
                 .with_nodes(nodes.clone())
-                .with_images(image.clone()),
+                .with_images(image.clone())
+                .with_ha(config.ha.enabled, config.ha.quorum),
         ));
 
         let network_backend: Box<dyn NetworkBackend> = match config.network.backend.as_str() {
@@ -202,11 +205,15 @@ impl Daemon {
         module_manager.register(Box::new(S3ModuleProxy));
         module_manager.register(Box::new(MetricsModuleProxy));
 
+        let ha_interval_secs = config.ha.scan_interval_secs.max(1);
+
         Self {
             config,
             event_bus: Arc::new(EventBus::new()),
             module_manager: Arc::new(Mutex::new(module_manager)),
             node_module: nodes,
+            compute_module: compute,
+            ha_interval_secs,
             http_router,
         }
     }
@@ -268,6 +275,30 @@ impl Daemon {
         }
 
         tracing::info!("THISCLOUD daemon started successfully");
+
+        // T1.4: periodic HA failover scan — relocates HA-enrolled running VMs
+        // off nodes that stopped heartbeating (subject to quorum).
+        {
+            let compute_handle = self.compute_module.clone();
+            let interval = self.ha_interval_secs;
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
+                loop {
+                    ticker.tick().await;
+                    let mut compute = compute_handle.lock().await;
+                    match compute.failover_scan().await {
+                        Ok(moved) if !moved.is_empty() => tracing::info!(
+                            "HA failover moved {} VM(s): {:?}",
+                            moved.len(),
+                            moved
+                        ),
+                        Ok(_) => {}
+                        Err(e) => tracing::error!("HA failover scan error: {:#}", e),
+                    }
+                }
+            });
+        }
+
         Ok(())
     }
 

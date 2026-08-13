@@ -23,6 +23,11 @@ pub trait HypervisorBackend: Send + Sync {
     async fn attach_nic(&self, vm: &VmConfig, tap: &str) -> anyhow::Result<()>;
     /// Hot-detach a NIC from a running VM.
     async fn detach_nic(&self, vm: &VmConfig, tap: &str) -> anyhow::Result<()>;
+    /// Live-migrate a running VM to another cluster node (T1.4 HA). The VM must
+    /// boot from shared storage (e.g. Ceph RBD) so the disk stays in place; only
+    /// the memory/device state travels. On stopped VMs the backend is skipped and
+    /// only placement moves.
+    async fn migrate(&self, vm: &VmConfig, target_node: &str) -> anyhow::Result<()>;
     /// URL of the daemon-proxied console (VNC/vsock WebSocket endpoint).
     async fn console_url(&self, vm: &VmConfig) -> anyhow::Result<String>;
 }
@@ -36,13 +41,20 @@ fn now_epoch() -> String {
 
 pub struct MockHypervisor {
     running: std::sync::Mutex<Vec<String>>,
+    migrations: std::sync::Mutex<Vec<(String, String)>>,
 }
 
 impl MockHypervisor {
     pub fn new() -> Self {
         Self {
             running: std::sync::Mutex::new(Vec::new()),
+            migrations: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Records of `(vm_id, target_node)` live migrations issued to this backend.
+    pub fn migration_log(&self) -> Vec<(String, String)> {
+        self.migrations.lock().unwrap().clone()
     }
 }
 
@@ -105,6 +117,17 @@ impl HypervisorBackend for MockHypervisor {
     }
 
     async fn detach_nic(&self, _vm: &VmConfig, _tap: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn migrate(&self, vm: &VmConfig, target_node: &str) -> anyhow::Result<()> {
+        // The VM keeps running on the destination; only placement changes.
+        if self.running.lock().unwrap().contains(&vm.id) {
+            self.migrations
+                .lock()
+                .unwrap()
+                .push((vm.id.clone(), target_node.to_string()));
+        }
         Ok(())
     }
 
@@ -326,6 +349,32 @@ impl HypervisorBackend for CloudHypervisor {
             .await?;
         if !status.success() {
             anyhow::bail!("cloud-hypervisor remove-net failed: {:?}", status);
+        }
+        Ok(())
+    }
+
+    async fn migrate(&self, vm: &VmConfig, target_node: &str) -> anyhow::Result<()> {
+        if vm.status != VmStatus::Running {
+            // Cold migration: no state to transfer; the orchestrator only moves
+            // placement. Shared storage (Ceph RBD / Linstor) keeps the disk.
+            return Ok(());
+        }
+        // Live migration: stream memory/device state to a ch endpoint on the
+        // destination node. The destination daemon starts the receive side
+        // (`cloud-hypervisor ... --migration src=tcp://<source>`) — in this
+        // iteration the target is addressed by node, the real VhostUser/CH
+        // broker wiring ships with the ISO agent.
+        let dst = format!("tcp://{target_node}:8443");
+        let status = Command::new("cloud-hypervisor")
+            .arg("--api-socket")
+            .arg(Self::socket(vm))
+            .arg("migrate")
+            .arg("--dst")
+            .arg(dst)
+            .status()
+            .await?;
+        if !status.success() {
+            anyhow::bail!("cloud-hypervisor migrate failed: {:?}", status);
         }
         Ok(())
     }
