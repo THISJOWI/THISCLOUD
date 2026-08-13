@@ -2,6 +2,7 @@ use crate::compute::vm::{ConsoleInfo, DiskConfig, Snapshot, VmConfig, VmStatus};
 use crate::compute::vmstore::VmStore;
 use crate::compute::HypervisorBackend;
 use crate::core::{Event, EventBus};
+use crate::image::ImageModule;
 use crate::node::NodeModule;
 use crate::quota::model::ResourceDelta;
 use crate::quota::QuotaModule;
@@ -14,6 +15,7 @@ pub struct ComputeModule {
     store: Box<dyn VmStore>,
     quota: Option<Arc<Mutex<QuotaModule>>>,
     nodes: Option<Arc<Mutex<NodeModule>>>,
+    images: Option<Arc<Mutex<ImageModule>>>,
 }
 
 impl ComputeModule {
@@ -23,6 +25,7 @@ impl ComputeModule {
             store,
             quota: None,
             nodes: None,
+            images: None,
         }
     }
 
@@ -36,6 +39,47 @@ impl ComputeModule {
     pub fn with_nodes(mut self, nodes: Arc<Mutex<NodeModule>>) -> Self {
         self.nodes = Some(nodes);
         self
+    }
+
+    /// Enable image resolution for this module (T1.2 image registry).
+    pub fn with_images(mut self, images: Arc<Mutex<ImageModule>>) -> Self {
+        self.images = Some(images);
+        self
+    }
+
+    /// Resolve the boot image: translate an image name/id into a disk path
+    /// when the caller did not supply one explicitly.
+    async fn resolve_image(&self, tenant_id: &str, vm: &mut VmConfig) -> anyhow::Result<()> {
+        if vm.image.is_empty() {
+            return Ok(());
+        }
+        let Some(images) = self.images.clone() else {
+            anyhow::bail!(
+                "vm specifies image '{}' but the image registry is not available",
+                vm.image
+            );
+        };
+        let images = images.lock().await;
+        let image = match images.get(tenant_id, &vm.image).await {
+            Ok(i) => i,
+            Err(_) => images
+                .get_by_name(tenant_id, &vm.image)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("image '{}' not found", vm.image))?,
+        };
+        if vm.disk_path.is_empty() && image.format != crate::image::ImageFormat::CloudInit {
+            vm.disk_path = format!(
+                "/var/lib/thiscloud/images/{}.{}",
+                image.id,
+                match image.format {
+                    crate::image::ImageFormat::Qcow2 => "qcow2",
+                    crate::image::ImageFormat::Iso => "iso",
+                    crate::image::ImageFormat::Raw => "img",
+                    crate::image::ImageFormat::CloudInit => "cfg",
+                }
+            );
+        }
+        Ok(())
     }
 
     /// Resolve the placement node for `vm`: honour an explicit `node`, otherwise
@@ -91,6 +135,7 @@ impl ComputeModule {
         vm.tenant_id = tenant_id.to_string();
         self.enforce_quota(tenant_id, &vm).await?;
         self.place_on_node(&mut vm).await?;
+        self.resolve_image(tenant_id, &mut vm).await?;
         self.store.put(tenant_id, &vm).await?;
         tracing::info!(
             "VM created: {} ({}) tenant={} node={}",

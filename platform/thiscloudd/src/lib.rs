@@ -3,6 +3,7 @@ pub mod auth;
 pub mod compute;
 pub mod config;
 pub mod core;
+pub mod image;
 pub mod marketplace;
 pub mod network;
 pub mod node;

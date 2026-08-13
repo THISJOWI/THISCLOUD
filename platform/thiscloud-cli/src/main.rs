@@ -1,6 +1,7 @@
 mod commands;
 
 use clap::{Parser, Subcommand};
+use commands::image::ImageCommands;
 use commands::marketplace::MarketplaceCommands;
 use commands::network::NetworkCommands;
 use commands::node::NodeCommands;
@@ -62,6 +63,11 @@ enum Commands {
         #[command(subcommand)]
         command: NodeCommands,
     },
+    /// Manage VM images and templates
+    Image {
+        #[command(subcommand)]
+        command: ImageCommands,
+    },
 }
 
 #[tokio::main]
@@ -77,5 +83,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Storage { command } => commands::run_storage_command(command).await,
         Commands::Marketplace { command } => commands::run_marketplace_command(command).await,
         Commands::Node { command } => commands::run_node_command(command).await,
+        Commands::Image { command } => commands::run_image_command(command).await,
     }
 }

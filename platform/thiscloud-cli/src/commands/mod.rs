@@ -1,4 +1,5 @@
 pub mod init;
+pub mod image;
 pub mod join;
 pub mod marketplace;
 pub mod network;
@@ -10,6 +11,7 @@ pub mod vm;
 use std::time::Duration;
 
 pub use init::run_init;
+pub use image::run_image_command;
 pub use join::run_join;
 pub use marketplace::run_marketplace_command;
 pub use network::run_network_command;

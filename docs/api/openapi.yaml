@@ -1301,6 +1301,41 @@ components:
           type: integer
           description: Unix timestamp
 
+    Image:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        source:
+          type: string
+          description: Artifact location (HTTP(S) URL or local pool path)
+        sha256:
+          type: string
+          description: Expected/verified digest at import time
+        size_bytes:
+          type: integer
+          format: int64
+        format:
+          type: string
+          enum: [qcow2, iso, raw, cloud-init]
+        os_family:
+          type: string
+          enum: [generic, alma, ubuntu, debian, fedora, rocky]
+        version:
+          type: string
+        template:
+          type: boolean
+          description: Reusable as a VM template
+        status:
+          type: string
+          enum: [available, importing, error]
+        tenant_id:
+          type: string
+          description: Owner tenant (set by server)
+
     Error:
       type: object
       properties:

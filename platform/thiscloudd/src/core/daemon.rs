@@ -7,6 +7,10 @@ use crate::compute::{
     CloudHypervisor, ComputeModule, HypervisorBackend, MemoryVmStore, MockHypervisor,
 };
 use crate::config::ThisCloudConfig;
+use crate::image::http::{app as image_http_app, ImageApiState};
+use crate::image::{
+    ImageBackend, ImageModule, LocalImageBackend, MemoryImageStore, MockImageBackend,
+};
 use crate::marketplace::http::{app as marketplace_http_app, MarketplaceApiState};
 use crate::marketplace::{
     DockerHubBackend, MarketplaceBackend, MarketplaceModule, MemoryMarketplaceStore,
@@ -55,10 +59,20 @@ impl Daemon {
             _ => Box::new(MockHypervisor::new()),
         };
         let nodes = Arc::new(tokio::sync::Mutex::new(NodeModule::with_memory_store()));
+        let image_backend: Box<dyn ImageBackend> = match config.image.backend.as_str() {
+            "local" => Box::new(LocalImageBackend::new(config.image.images_dir.clone())),
+            _ => Box::new(MockImageBackend::default()),
+        };
+        let image = Arc::new(tokio::sync::Mutex::new(ImageModule::new(
+            image_backend,
+            Box::new(MemoryImageStore::default()),
+        )));
+        let image_router = image_http_app(ImageApiState::new(image.clone()));
         let compute = Arc::new(tokio::sync::Mutex::new(
             ComputeModule::new(backend, Box::new(MemoryVmStore::default()))
                 .with_quota(quota_module.clone())
-                .with_nodes(nodes.clone()),
+                .with_nodes(nodes.clone())
+                .with_images(image.clone()),
         ));
 
         let network_backend: Box<dyn NetworkBackend> = match config.network.backend.as_str() {
@@ -103,6 +117,7 @@ impl Daemon {
             .merge(network_router)
             .merge(storage_router)
             .merge(marketplace_router)
+            .merge(image_router)
             .merge(node_router)
             .merge(quota_router);
 
@@ -163,6 +178,7 @@ impl Daemon {
         module_manager.register(Box::new(StorageModuleProxy));
         module_manager.register(Box::new(MarketplaceModuleProxy));
         module_manager.register(Box::new(NodeModuleProxy));
+        module_manager.register(Box::new(ImageModuleProxy));
 
         Self {
             config,
@@ -355,6 +371,20 @@ impl Module for NetworkModuleProxy {
     }
     async fn stop(&mut self) -> anyhow::Result<()> {
         tracing::info!("Network module stopped"); Ok(())
+    }
+    fn is_running(&self) -> bool { true }
+}
+
+struct ImageModuleProxy;
+
+#[async_trait::async_trait]
+impl Module for ImageModuleProxy {
+    fn name(&self) -> &str { "image" }
+    async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
+        tracing::info!("Image module started"); Ok(())
+    }
+    async fn stop(&mut self) -> anyhow::Result<()> {
+        tracing::info!("Image module stopped"); Ok(())
     }
     fn is_running(&self) -> bool { true }
 }

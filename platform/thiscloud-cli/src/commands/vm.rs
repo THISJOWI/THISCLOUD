@@ -60,6 +60,9 @@ pub enum VmCommands {
         /// Scheduler anti-affinity label (can be repeated)
         #[arg(long = "anti-affinity")]
         anti_affinity: Vec<String>,
+        /// Boot from a registered image (name or id). Derives disk_path when omitted
+        #[arg(long)]
+        image: Option<String>,
     },
     /// Take a snapshot of a VM
     Snapshot {
@@ -241,6 +244,7 @@ pub async fn run_vm_command(command: VmCommands) -> anyhow::Result<()> {
             node,
             affinity,
             anti_affinity,
+            image,
         } => {
             let disk_path = disk.unwrap_or_else(|| format!("/var/lib/thiscloud/vms/{}.qcow2", name));
             let mut body = json!({
@@ -255,6 +259,9 @@ pub async fn run_vm_command(command: VmCommands) -> anyhow::Result<()> {
                 "affinity": affinity,
                 "anti_affinity": anti_affinity,
             });
+            if let Some(img) = image {
+                body["image"] = json!(img);
+            }
             if let Some(n) = node {
                 body["node"] = json!(n);
             }

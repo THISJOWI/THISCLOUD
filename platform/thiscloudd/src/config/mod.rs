@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod cluster;
 pub mod compute;
+pub mod image;
 pub mod marketplace;
 pub mod network;
 pub mod storage;
@@ -8,6 +9,7 @@ pub mod storage;
 pub use auth::AuthConfig;
 pub use cluster::{ClusterConfig, EtcdConfig, NodeConfig};
 pub use compute::ComputeConfig;
+pub use image::ImageConfig;
 pub use marketplace::MarketplaceConfig;
 pub use network::NetworkConfig;
 pub use storage::{PoolConfig, StorageConfig};
@@ -27,6 +29,8 @@ pub struct ThisCloudConfig {
     pub compute: ComputeConfig,
     #[serde(default)]
     pub marketplace: MarketplaceConfig,
+    #[serde(default)]
+    pub image: ImageConfig,
     #[serde(default)]
     pub auth: AuthConfig,
 }

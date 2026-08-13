@@ -80,6 +80,10 @@ pub struct VmConfig {
     /// Scheduler anti-affinity labels (node must not carry any).
     #[serde(default)]
     pub anti_affinity: Vec<String>,
+    /// Image (registered in the image registry) used to boot this VM. Name or
+    /// id. Derived disk_path when empty.
+    #[serde(default)]
+    pub image: String,
 }
 
 fn stopped() -> VmStatus {
@@ -115,6 +119,7 @@ impl VmConfig {
             node: String::new(),
             affinity: Vec::new(),
             anti_affinity: Vec::new(),
+            image: String::new(),
         }
     }
 }
