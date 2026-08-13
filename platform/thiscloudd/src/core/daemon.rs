@@ -16,12 +16,16 @@ use crate::marketplace::{
     DockerHubBackend, MarketplaceBackend, MarketplaceModule, MemoryMarketplaceStore,
     MockMarketplaceBackend,
 };
+use crate::metrics::http::{app as metrics_http_app, MetricsApiState};
+use crate::metrics::MetricRegistry;
 use crate::network::http::{app as network_http_app, NetworkApiState};
 use crate::network::{MemoryNetworkStore, MockNetworkBackend, NetworkBackend, NetworkModule};
 use crate::node::http::{app as node_http_app, NodeApiState};
 use crate::node::NodeModule;
 use crate::quota::http::{app as quota_http_app, QuotaApiState};
 use crate::quota::QuotaModule;
+use crate::s3::http::{app as s3_http_app, S3ApiState};
+use crate::s3::{MemoryS3Store, MockS3Backend, RadosgwBackend, S3Backend, S3Module};
 use crate::storage::http::{app as storage_http_app, StorageApiState};
 use crate::storage::{MemoryStorageStore, MockStorageBackend, StorageBackend, StorageModule};
 use axum::routing::get;
@@ -112,6 +116,19 @@ impl Daemon {
             as Box<dyn crate::audit::store::AuditStore>));
         let audit_state = AuditState { store: audit_store };
 
+        let s3_backend: Box<dyn S3Backend> = match config.s3.backend.as_str() {
+            "radosgw" => Box::new(RadosgwBackend::new(config.s3.gateway_host.clone())),
+            _ => Box::new(MockS3Backend::new()),
+        };
+        let s3 = Arc::new(tokio::sync::Mutex::new(S3Module::new(
+            s3_backend,
+            Box::new(MemoryS3Store::default()),
+        )));
+        let s3_router = s3_http_app(S3ApiState::new(s3.clone()));
+
+        let metric_registry = Arc::new(MetricRegistry::new());
+        let metrics_router = metrics_http_app(MetricsApiState::new(metric_registry.clone()));
+
         let node_router = node_http_app(NodeApiState::new(nodes.clone()));
 
         let resource_router = http_app(ApiState::new(compute.clone()))
@@ -120,7 +137,9 @@ impl Daemon {
             .merge(marketplace_router)
             .merge(image_router)
             .merge(node_router)
-            .merge(quota_router);
+            .merge(quota_router)
+            .merge(s3_router)
+            .merge(metrics_router);
 
         // Audit middleware: records mutations to the shared audit store.
         let resource_router = resource_router.layer(
@@ -180,6 +199,8 @@ impl Daemon {
         module_manager.register(Box::new(MarketplaceModuleProxy));
         module_manager.register(Box::new(NodeModuleProxy));
         module_manager.register(Box::new(ImageModuleProxy));
+        module_manager.register(Box::new(S3ModuleProxy));
+        module_manager.register(Box::new(MetricsModuleProxy));
 
         Self {
             config,
@@ -414,6 +435,34 @@ impl Module for NodeModuleProxy {
     }
     async fn stop(&mut self) -> anyhow::Result<()> {
         tracing::info!("Node module stopped"); Ok(())
+    }
+    fn is_running(&self) -> bool { true }
+}
+
+struct S3ModuleProxy;
+
+#[async_trait::async_trait]
+impl Module for S3ModuleProxy {
+    fn name(&self) -> &str { "s3" }
+    async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
+        tracing::info!("S3 module started"); Ok(())
+    }
+    async fn stop(&mut self) -> anyhow::Result<()> {
+        tracing::info!("S3 module stopped"); Ok(())
+    }
+    fn is_running(&self) -> bool { true }
+}
+
+struct MetricsModuleProxy;
+
+#[async_trait::async_trait]
+impl Module for MetricsModuleProxy {
+    fn name(&self) -> &str { "metrics" }
+    async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
+        tracing::info!("Metrics module started"); Ok(())
+    }
+    async fn stop(&mut self) -> anyhow::Result<()> {
+        tracing::info!("Metrics module stopped"); Ok(())
     }
     fn is_running(&self) -> bool { true }
 }

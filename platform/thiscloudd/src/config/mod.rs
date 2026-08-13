@@ -3,7 +3,9 @@ pub mod cluster;
 pub mod compute;
 pub mod image;
 pub mod marketplace;
+pub mod metrics;
 pub mod network;
+pub mod s3;
 pub mod storage;
 
 pub use auth::AuthConfig;
@@ -11,7 +13,9 @@ pub use cluster::{ClusterConfig, EtcdConfig, NodeConfig};
 pub use compute::ComputeConfig;
 pub use image::ImageConfig;
 pub use marketplace::MarketplaceConfig;
+pub use metrics::MetricsConfig;
 pub use network::NetworkConfig;
+pub use s3::S3Config;
 pub use storage::{PoolConfig, StorageConfig};
 
 use serde::Deserialize;
@@ -31,6 +35,10 @@ pub struct ThisCloudConfig {
     pub marketplace: MarketplaceConfig,
     #[serde(default)]
     pub image: ImageConfig,
+    #[serde(default)]
+    pub s3: S3Config,
+    #[serde(default)]
+    pub metrics: MetricsConfig,
     #[serde(default)]
     pub auth: AuthConfig,
 }

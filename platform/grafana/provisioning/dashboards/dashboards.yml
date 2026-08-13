@@ -1,0 +1,14 @@
+# T5.1 Dashboard provisioning: loads THISCLOUD dashboards from disk.
+apiVersion: 1
+
+providers:
+  - name: thiscloud
+    orgId: 1
+    folder: THISCLOUD
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

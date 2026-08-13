@@ -32,7 +32,7 @@ async fn test_daemon_creation() {
     let config = thiscloudd::config::ThisCloudConfig::default();
     let daemon = thiscloudd::core::Daemon::new(config);
 
-    assert_eq!(daemon.module_count().await, 6);
+    assert_eq!(daemon.module_count().await, 8);
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ name = "test-cluster"
     let daemon = thiscloudd::core::Daemon::new(config);
 
     assert_eq!(daemon.cluster_name(), "test-cluster");
-    assert_eq!(daemon.module_count().await, 6);
+    assert_eq!(daemon.module_count().await, 8);
 }
 
 #[tokio::test]
@@ -58,7 +58,7 @@ async fn test_daemon_register_module() {
         started: AtomicBool::new(false),
     })).await;
 
-    assert_eq!(daemon.module_count().await, 7);
+    assert_eq!(daemon.module_count().await, 9);
 }
 
 #[tokio::test]

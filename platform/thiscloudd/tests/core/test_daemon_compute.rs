@@ -6,10 +6,19 @@ async fn test_daemon_registers_compute_module() {
     let config = ThisCloudConfig::default();
     let daemon = thiscloudd::core::Daemon::new(config);
 
-    assert_eq!(daemon.module_count().await, 6);
+    assert_eq!(daemon.module_count().await, 8);
     assert_eq!(
         daemon.module_names().await,
-        vec!["compute", "network", "storage", "marketplace", "node", "image"]
+        vec![
+            "compute",
+            "network",
+            "storage",
+            "marketplace",
+            "node",
+            "image",
+            "s3",
+            "metrics"
+        ]
     );
 }
 
