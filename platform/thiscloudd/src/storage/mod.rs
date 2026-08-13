@@ -4,7 +4,7 @@ pub mod model;
 pub mod module;
 pub mod store;
 
-pub use backend::{LinstorBackend, MockStorageBackend, StorageBackend};
+pub use backend::{CephBackend, LinstorBackend, MockStorageBackend, StorageBackend};
 pub use http::{app as http_app, StorageApiState};
 pub use model::{PoolType, StoragePool};
 pub use module::StorageModule;

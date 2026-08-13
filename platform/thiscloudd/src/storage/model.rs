@@ -7,6 +7,7 @@ pub enum PoolType {
     Linstor,
     Drbd,
     Local,
+    Ceph,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

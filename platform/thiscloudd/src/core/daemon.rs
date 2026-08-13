@@ -87,6 +87,7 @@ impl Daemon {
 
         let storage_backend: Box<dyn StorageBackend> = match config.storage.backend.as_str() {
             "linstor" => Box::new(crate::storage::LinstorBackend::new()),
+            "ceph" => Box::new(crate::storage::CephBackend::new()),
             _ => Box::new(MockStorageBackend::new()),
         };
         let storage = Arc::new(tokio::sync::Mutex::new(StorageModule::new(
