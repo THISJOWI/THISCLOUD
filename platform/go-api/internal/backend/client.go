@@ -19,12 +19,13 @@ type Client struct {
 }
 
 // NewClient returns a Client pointed at the given thiscloudd base URL.
+// The daemon serves its versioned contract under /api/v1 (T0.1).
 func NewClient(baseURL string) *Client {
 	if baseURL == "" {
 		baseURL = "http://127.0.0.1:8080"
 	}
 	return &Client{
-		baseURL: strings.TrimSuffix(baseURL, "/"),
+		baseURL: strings.TrimSuffix(baseURL, "/") + "/api/v1",
 		http:    &http.Client{Timeout: 10 * time.Second},
 	}
 }

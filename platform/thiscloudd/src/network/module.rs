@@ -1,18 +1,47 @@
 use crate::core::{Event, EventBus};
 use crate::network::{LogicalNetwork, NetworkBackend, NetworkStore};
+use crate::quota::model::ResourceDelta;
+use crate::quota::QuotaModule;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct NetworkModule {
     backend: Box<dyn NetworkBackend>,
     store: Box<dyn NetworkStore>,
+    quota: Option<Arc<Mutex<QuotaModule>>>,
 }
 
 impl NetworkModule {
     pub fn new(backend: Box<dyn NetworkBackend>, store: Box<dyn NetworkStore>) -> Self {
-        Self { backend, store }
+        Self {
+            backend,
+            store,
+            quota: None,
+        }
+    }
+
+    /// Enable quota enforcement for this module (T0.5).
+    pub fn with_quota(mut self, quota: Arc<Mutex<QuotaModule>>) -> Self {
+        self.quota = Some(quota);
+        self
+    }
+
+    /// Enforce tenant quota on the number of logical networks.
+    async fn enforce_quota(&self, tenant_id: &str) -> anyhow::Result<()> {
+        if let Some(quota) = &self.quota {
+            let existing = self.store.list(tenant_id).await?;
+            let delta = ResourceDelta {
+                networks: existing.len() as u32 + 1,
+                ..Default::default()
+            };
+            quota.lock().await.check(tenant_id, &delta).await?;
+        }
+        Ok(())
     }
 
     pub async fn create_network(&mut self, tenant_id: &str, net: &mut LogicalNetwork) -> anyhow::Result<()> {
         net.tenant_id = tenant_id.to_string();
+        self.enforce_quota(tenant_id).await?;
         for existing in self.store.list(tenant_id).await? {
             if existing.name == net.name {
                 anyhow::bail!("network '{}' already exists", net.name);

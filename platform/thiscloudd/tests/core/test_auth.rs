@@ -54,13 +54,13 @@ fn protected_router() -> Router {
 #[tokio::test]
 async fn test_login_missing_fields_400() {
     init();
-    let router = login_router(login_state());
+    let router = axum::Router::new().nest("/api/v1", login_router(login_state()));
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/auth/login")
+                .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"username":"","password":""}"#))
                 .unwrap(),
@@ -73,14 +73,14 @@ async fn test_login_missing_fields_400() {
 #[tokio::test]
 async fn test_login_invalid_username_rejected() {
     init();
-    let router = login_router(login_state());
+    let router = axum::Router::new().nest("/api/v1", login_router(login_state()));
 
     // Shell-injection-style username must be rejected before any auth command runs.
     let response = router
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/auth/login")
+                .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(
                     r#"{"username":"bob; rm -rf /","password":"x"}"#,
@@ -95,7 +95,7 @@ async fn test_login_invalid_username_rejected() {
 #[tokio::test]
 async fn test_login_oversized_username_rejected() {
     init();
-    let router = login_router(login_state());
+    let router = axum::Router::new().nest("/api/v1", login_router(login_state()));
 
     let long_user = "a".repeat(33);
     let body = format!(r#"{{"username":"{long_user}","password":"x"}}"#);
@@ -103,7 +103,7 @@ async fn test_login_oversized_username_rejected() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/auth/login")
+                .uri("/api/v1/auth/login")
                 .header("content-type", "application/json")
                 .body(Body::from(body))
                 .unwrap(),
@@ -189,8 +189,11 @@ async fn test_http_tenant_isolation() {
         Box::new(MockHypervisor::new()),
         Box::new(MemoryVmStore::default()),
     );
-    let router = app(ApiState::new(Arc::new(Mutex::new(module))))
-        .layer(middleware::from_fn(jwt_auth));
+    let router = axum::Router::new().nest(
+        "/api/v1",
+        app(ApiState::new(Arc::new(Mutex::new(module))))
+            .layer(middleware::from_fn(jwt_auth)),
+    );
 
     let vm_body = serde_json::to_string(&VmConfig::new(
         "vm-1".to_string(),
@@ -209,7 +212,7 @@ async fn test_http_tenant_isolation() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {token_a}"))
                 .body(Body::from(vm_body))
@@ -225,7 +228,7 @@ async fn test_http_tenant_isolation() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("authorization", format!("Bearer {token_b}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -242,7 +245,7 @@ async fn test_http_tenant_isolation() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("authorization", format!("Bearer {token_a}"))
                 .body(Body::empty())
                 .unwrap(),

@@ -9,7 +9,8 @@ fn config_path() -> PathBuf {
 }
 
 fn daemon_url() -> String {
-    std::env::var("THISCLOUD_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string())
+    std::env::var("THISCLOUD_API_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8080/api/v1/healthz".to_string())
 }
 
 pub async fn run_status() -> anyhow::Result<()> {

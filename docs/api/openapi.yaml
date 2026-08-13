@@ -8,14 +8,26 @@ info:
   contact:
     name: THISJOWI
 servers:
-  - url: http://127.0.0.1:8080
-    description: Local daemon
+  - url: http://127.0.0.1:8080/api/v1
+    description: Local daemon (versioned API)
 
 security:
   - BearerAuth: []
 
 paths:
-  /healthz:
+  /openapi.yaml:
+    get:
+      summary: This contract (OpenAPI)
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: The OpenAPI document served by this daemon
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/v1/healthz:
     get:
       summary: Health check
       tags: [System]
@@ -25,7 +37,7 @@ paths:
           description: OK
 
   # ── Auth ──────────────────────────────────────────────
-  /auth/login:
+  /api/v1/auth/login:
     post:
       summary: Authenticate user and get JWT
       tags: [Auth]
@@ -49,7 +61,7 @@ paths:
           description: Invalid credentials
 
   # ── VMs ──────────────────────────────────────────────
-  /vms:
+  /api/v1/vms:
     get:
       summary: List VMs
       tags: [Compute]
@@ -91,7 +103,7 @@ paths:
         "409":
           $ref: "#/components/responses/QuotaExceeded"
 
-  /vms/{id}:
+  /api/v1/vms/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
@@ -119,7 +131,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /vms/{id}/start:
+  /api/v1/vms/{id}/start:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     post:
@@ -139,7 +151,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /vms/{id}/stop:
+  /api/v1/vms/{id}/stop:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     post:
@@ -159,8 +171,378 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/vms/{id}/snapshot:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Snapshot a VM
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Snapshot taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Snapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/restore:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Restore a VM from a snapshot
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [snapshot_id]
+              properties:
+                snapshot_id:
+                  type: string
+      responses:
+        "200":
+          description: VM restored
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/clone:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Clone a VM or template into a new VM
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Cloned VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/QuotaExceeded"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/resize:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Resize a VM (cpus / memory, hot on running VMs)
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cpus:
+                  type: integer
+                  minimum: 0
+                memory_mb:
+                  type: integer
+                  minimum: 0
+      responses:
+        "200":
+          description: VM resized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/disks:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    put:
+      summary: Attach a data disk to a VM
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiskConfig"
+      responses:
+        "201":
+          description: Disk attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiskConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/disks/{disk_id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - name: disk_id
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      summary: Detach a data disk from a VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: Disk detached
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/nics:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    put:
+      summary: Attach a NIC to a VM
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tap]
+              properties:
+                tap:
+                  type: string
+      responses:
+        "200":
+          description: NIC attached
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/nics/{tap}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+      - name: tap
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      summary: Detach a NIC from a VM
+      tags: [Compute]
+      responses:
+        "200":
+          description: NIC detached
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/console:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get console (VNC/vsock) access URL
+      tags: [Compute]
+      responses:
+        "200":
+          description: Console URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsoleInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Nodes (cluster) ─────────────────────────────────
+  /api/v1/nodes:
+    get:
+      summary: List cluster nodes
+      tags: [Node]
+      responses:
+        "200":
+          description: Node list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      summary: Register a node
+      tags: [Node]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Node"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/nodes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      summary: Get a node
+      tags: [Node]
+      responses:
+        "200":
+          description: Node details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Remove a node
+      tags: [Node]
+      responses:
+        "200":
+          description: Removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/nodes/{id}/drain:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    put:
+      summary: Start or stop draining a node
+      tags: [Node]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [drain]
+              properties:
+                drain:
+                  type: boolean
+      responses:
+        "200":
+          description: Node updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/nodes/{id}/heartbeat:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Node agent heartbeat (liveness + usage report)
+      tags: [Node]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NodeHeartbeat"
+      responses:
+        "200":
+          description: Node refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ── Networks ─────────────────────────────────────────
-  /networks:
+  /api/v1/networks:
     get:
       summary: List networks
       tags: [Network]
@@ -199,8 +581,10 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/QuotaExceeded"
 
-  /networks/{id}:
+  /api/v1/networks/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
@@ -229,7 +613,7 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   # ── Storage ──────────────────────────────────────────
-  /storage/pools:
+  /api/v1/storage/pools:
     get:
       summary: List storage pools
       tags: [Storage]
@@ -268,8 +652,10 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/QuotaExceeded"
 
-  /storage/pools/{name}:
+  /api/v1/storage/pools/{name}:
     parameters:
       - name: name
         in: path
@@ -302,7 +688,7 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   # ── Marketplace ──────────────────────────────────────
-  /marketplace/apps:
+  /api/v1/marketplace/apps:
     get:
       summary: List marketplace apps
       tags: [Marketplace]
@@ -336,7 +722,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/MarketplaceApp"
 
-  /marketplace/apps/{id}:
+  /api/v1/marketplace/apps/{id}:
     parameters:
       - $ref: "#/components/parameters/ResourceId"
     get:
@@ -363,6 +749,143 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # ── Quotas (T0.5) ───────────────────────────────────
+  /api/v1/quotas:
+    get:
+      summary: List all tenant quotas
+      tags: [Quotas]
+      responses:
+        "200":
+          description: Quota list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TenantQuota"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/quotas/{tenant_id}:
+    parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get tenant quota (unlimited when unset)
+      tags: [Quotas]
+      responses:
+        "200":
+          description: Tenant quota
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantQuota"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      summary: Set tenant quota
+      tags: [Quotas]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantQuota"
+      responses:
+        "200":
+          description: Quota updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantQuota"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      summary: Delete tenant quota (back to unlimited)
+      tags: [Quotas]
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Audit (T0.6) ────────────────────────────────────
+  /api/v1/audit:
+    get:
+      summary: Query audit log
+      description: |
+        Records every mutation (who/what/when/tenant). Filters are optional.
+      tags: [Audit]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: user
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [create, read, update, delete]
+        - name: resource
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit entries (most recent first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/audit/export:
+    get:
+      summary: Export full audit log as JSON
+      tags: [Audit]
+      responses:
+        "200":
+          description: Complete append-only audit log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
 components:
   securitySchemes:
@@ -420,6 +943,40 @@ components:
           type: array
           items:
             type: string
+        disks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiskConfig"
+        snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Snapshot"
+        cloud_init:
+          type: string
+          nullable: true
+          description: Cloud-init user-data (cloud-config), applied at next boot
+        uefi:
+          type: boolean
+          description: Boot with UEFI firmware (OVMF)
+        tpm:
+          type: boolean
+          description: Attach a vTPM device (requires UEFI)
+        template:
+          type: boolean
+          description: Mark VM as a reusable template
+        node:
+          type: string
+          description: Placement node ID. Empty means the best-fit scheduler picks it
+        affinity:
+          type: array
+          items:
+            type: string
+          description: Scheduler affinity labels (node must carry at least one)
+        anti_affinity:
+          type: array
+          items:
+            type: string
+          description: Scheduler anti-affinity labels (node must not carry any)
         status:
           type: string
           enum: [running, stopped, error]
@@ -449,6 +1006,121 @@ components:
           type: array
           items:
             type: string
+        cloud_init:
+          type: string
+          description: Cloud-init user-data (cloud-config), applied at next boot
+        uefi:
+          type: boolean
+        tpm:
+          type: boolean
+        template:
+          type: boolean
+          description: Mark VM as a reusable template
+        node:
+          type: string
+          description: Placement node ID. Empty means the best-fit scheduler picks it
+        affinity:
+          type: array
+          items:
+            type: string
+        anti_affinity:
+          type: array
+          items:
+            type: string
+
+    Snapshot:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          description: UNIX epoch seconds
+
+    DiskConfig:
+      type: object
+      required: [path]
+      properties:
+        id:
+          type: string
+        path:
+          type: string
+        size_gb:
+          type: integer
+          minimum: 0
+
+    ConsoleInfo:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: WebSocket console endpoint (VNC/vsock proxied by the daemon)
+
+    Node:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Server-assigned node ID
+        name:
+          type: string
+        role:
+          type: string
+          enum: [master, worker]
+        address:
+          type: string
+          description: ip:port of the node agent
+        hostname:
+          type: string
+        cpus_total:
+          type: integer
+          minimum: 0
+          description: 0 means unknown/unlimited
+        cpus_used:
+          type: integer
+          minimum: 0
+        memory_total_mb:
+          type: integer
+          minimum: 0
+          description: 0 means unknown/unlimited
+        memory_used_mb:
+          type: integer
+          minimum: 0
+        vms:
+          type: integer
+          minimum: 0
+        state:
+          type: string
+          enum: [online, offline, draining]
+        last_seen_secs:
+          type: integer
+          description: UNIX epoch of last heartbeat
+        ttl_secs:
+          type: integer
+          description: Seconds without heartbeat before a node goes offline
+        labels:
+          type: array
+          items:
+            type: string
+          description: Scheduler affinity/anti-affinity labels
+
+    NodeHeartbeat:
+      type: object
+      required: [cpus_used, memory_used_mb, vms]
+      properties:
+        cpus_used:
+          type: integer
+          minimum: 0
+        memory_used_mb:
+          type: integer
+          minimum: 0
+        vms:
+          type: integer
+          minimum: 0
 
     Network:
       type: object
@@ -552,6 +1224,55 @@ components:
         source:
           type: string
         version:
+          type: string
+
+    TenantQuota:
+      type: object
+      required: [tenant_id]
+      description: Per-tenant resource limits. 0 means unlimited.
+      properties:
+        tenant_id:
+          type: string
+        max_cpus:
+          type: integer
+          minimum: 0
+        max_memory_mb:
+          type: integer
+          minimum: 0
+        max_vms:
+          type: integer
+          minimum: 0
+        max_storage_gb:
+          type: integer
+          minimum: 0
+        max_networks:
+          type: integer
+          minimum: 0
+
+    AuditEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          description: Unix epoch seconds
+        user:
+          type: string
+        role:
+          type: string
+        tenant_id:
+          type: string
+        action:
+          type: string
+          enum: [create, read, update, delete]
+        resource:
+          type: string
+          example: vm
+        resource_id:
+          type: string
+        detail:
           type: string
 
     LoginRequest:

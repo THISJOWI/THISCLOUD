@@ -52,8 +52,11 @@ fn router() -> Router {
         Box::new(MockHypervisor::new()),
         Box::new(MemoryVmStore::default()),
     );
-    app(ApiState::new(Arc::new(Mutex::new(module))))
-        .layer(middleware::from_fn(jwt_auth))
+    axum::Router::new().nest(
+        "/api/v1",
+        app(ApiState::new(Arc::new(Mutex::new(module))))
+            .layer(middleware::from_fn(jwt_auth)),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +71,7 @@ async fn tenant_user_create_vm_201() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {token}"))
                 .body(Body::from(vm_body("web1")))
@@ -87,7 +90,7 @@ async fn auditor_create_vm_403() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {token}"))
                 .body(Body::from(vm_body("blocked")))
@@ -119,7 +122,7 @@ async fn read_routes_allow_all_roles() {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/vms")
+                    .uri("/api/v1/vms")
                     .header("content-type", "application/json")
                     .header("authorization", format!("Bearer {admin_token}"))
                     .body(Body::from(vm_body("r1")))
@@ -132,7 +135,7 @@ async fn read_routes_allow_all_roles() {
         let resp = r
             .oneshot(
                 Request::builder()
-                    .uri("/vms")
+                    .uri("/api/v1/vms")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -158,7 +161,7 @@ async fn admin_delete_vm_200() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {admin}"))
                 .body(Body::from(vm_body("del1")))
@@ -177,7 +180,7 @@ async fn admin_delete_vm_200() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/vms/{}", vm.id))
+                .uri(format!("/api/v1/vms/{}", vm.id))
                 .header("authorization", format!("Bearer {admin}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -198,7 +201,7 @@ async fn tenant_user_delete_vm_403() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {admin}"))
                 .body(Body::from(vm_body("del2")))
@@ -218,7 +221,7 @@ async fn tenant_user_delete_vm_403() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/vms/{}", vm.id))
+                .uri(format!("/api/v1/vms/{}", vm.id))
                 .header("authorization", format!("Bearer {tu}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -238,7 +241,7 @@ async fn auditor_delete_vm_403() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {admin}"))
                 .body(Body::from(vm_body("del3")))
@@ -257,7 +260,7 @@ async fn auditor_delete_vm_403() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri(format!("/vms/{}", vm.id))
+                .uri(format!("/api/v1/vms/{}", vm.id))
                 .header("authorization", format!("Bearer {auditor}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -281,7 +284,7 @@ async fn tenant_user_start_vm_403() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/vms")
+                .uri("/api/v1/vms")
                 .header("content-type", "application/json")
                 .header("authorization", format!("Bearer {admin}"))
                 .body(Body::from(vm_body("s1")))
@@ -300,7 +303,7 @@ async fn tenant_user_start_vm_403() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/vms/{}/start", vm.id))
+                .uri(format!("/api/v1/vms/{}/start", vm.id))
                 .header("authorization", format!("Bearer {tu}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -328,7 +331,7 @@ async fn no_auth_context_bypasses_rbac() {
         .oneshot(
             Request::builder()
                 .method("DELETE")
-                .uri("/vms/ghost")
+                .uri("/api/v1/vms/ghost")
                 .body(Body::empty())
                 .unwrap(),
         )

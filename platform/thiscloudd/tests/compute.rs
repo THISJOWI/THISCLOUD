@@ -9,3 +9,6 @@ mod test_compute_module;
 
 #[path = "core/test_http.rs"]
 mod test_http;
+
+#[path = "core/test_vm_lifecycle.rs"]
+mod test_vm_lifecycle;

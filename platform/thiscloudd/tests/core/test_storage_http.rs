@@ -10,9 +10,12 @@ fn make_router() -> axum::Router {
         Box::new(MockStorageBackend::new()),
         Box::new(MemoryStorageStore::default()),
     );
-    app(StorageApiState::new(Arc::new(tokio::sync::Mutex::new(
-        module,
-    ))))
+    axum::Router::new().nest(
+        "/api/v1",
+        app(StorageApiState::new(Arc::new(tokio::sync::Mutex::new(
+            module,
+        )))),
+    )
 }
 
 #[tokio::test]
@@ -30,7 +33,7 @@ async fn test_storage_http_create_and_list() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/storage/pools")
+                .uri("/api/v1/storage/pools")
                 .header("content-type", "application/json")
                 .body(Body::from(create_body))
                 .unwrap(),
@@ -42,7 +45,7 @@ async fn test_storage_http_create_and_list() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/storage/pools")
+                .uri("/api/v1/storage/pools")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +61,7 @@ async fn test_storage_http_get_and_delete() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/storage/pools/missing")
+                .uri("/api/v1/storage/pools/missing")
                 .body(Body::empty())
                 .unwrap(),
         )

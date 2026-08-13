@@ -13,6 +13,15 @@ fn test_vm_config_roundtrip() {
         networks: vec!["br0".to_string()],
         status: VmStatus::Stopped,
         tenant_id: String::new(),
+        disks: Vec::new(),
+        snapshots: Vec::new(),
+        cloud_init: None,
+        uefi: false,
+        tpm: false,
+        template: false,
+        node: String::new(),
+        affinity: Vec::new(),
+        anti_affinity: Vec::new(),
     };
 
     let json = serde_json::to_string(&config).unwrap();

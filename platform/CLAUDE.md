@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 THISCLOUD — a self-hosted cloud platform ("Hypervisor OS") for managing VMs, networks, storage, and marketplace apps. Five components in this repo:
 
-- `thiscloud-cli/` — Rust CLI (`thiscloud`). Talks to the daemon over HTTP at `:8080`.
-- `thiscloudd/` — Rust daemon. axum HTTP API at `:8080`; owns compute/network/storage/marketplace modules.
+- `thiscloud-cli/` — Rust CLI (`thiscloud`). Talks to the daemon over HTTP at `:8080` (`/api/v1`).
+- `thiscloudd/` — Rust daemon. axum HTTP API at `:8080`; owns compute/network/storage/marketplace modules. All routes live under `/api/v1` (single versioned contract, `docs/api/openapi.yaml` served at `/api/v1/openapi.yaml`).
 - `go-api/` — Go orchestrator API at `:8081`. Bridges the web UI to the daemon; exposes Terraform-provider-shaped CRUD over `/api/v1/resources`.
 - `web-ui/` — Next.js 14 dashboard. Portal (`/`), Admin (`/admin`), Console (`/console`). Talks to the Go API, not the daemon.
 - `iso/` — AlmaLinux 9 ISO build pipeline (installs everything + deps: cloud-hypervisor, OVN/OVS, DRBD, Linstor, etcd, nginx).

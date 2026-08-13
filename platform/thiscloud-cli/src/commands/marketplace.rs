@@ -4,7 +4,7 @@ use serde_json::json;
 use super::{api_client, api_error_message};
 
 fn api_url() -> String {
-    std::env::var("THISCLOUD_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string())
+    std::env::var("THISCLOUD_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080/api/v1".to_string())
 }
 
 #[derive(Subcommand)]

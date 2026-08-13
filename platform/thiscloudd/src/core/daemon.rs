@@ -1,4 +1,6 @@
 use super::{EventBus, Module, ModuleManager};
+use crate::audit::middleware::{audit_middleware, AuditState};
+use crate::audit::MemoryAuditStore;
 use crate::auth::login::{self, LoginState};
 use crate::compute::http::{app as http_app, ApiState};
 use crate::compute::{
@@ -12,8 +14,14 @@ use crate::marketplace::{
 };
 use crate::network::http::{app as network_http_app, NetworkApiState};
 use crate::network::{MemoryNetworkStore, MockNetworkBackend, NetworkBackend, NetworkModule};
+use crate::node::http::{app as node_http_app, NodeApiState};
+use crate::node::NodeModule;
+use crate::quota::http::{app as quota_http_app, QuotaApiState};
+use crate::quota::QuotaModule;
 use crate::storage::http::{app as storage_http_app, StorageApiState};
 use crate::storage::{MemoryStorageStore, MockStorageBackend, StorageBackend, StorageModule};
+use axum::routing::get;
+use axum::Router;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -21,6 +29,7 @@ pub struct Daemon {
     config: ThisCloudConfig,
     event_bus: Arc<EventBus>,
     module_manager: Arc<Mutex<ModuleManager>>,
+    node_module: Arc<Mutex<NodeModule>>,
     http_router: axum::Router,
 }
 
@@ -36,23 +45,30 @@ fn random_secret() -> String {
 
 impl Daemon {
     pub fn new(config: ThisCloudConfig) -> Self {
+        // Shared per-tenant quotas (T0.5): wired into compute/network modules
+        // for enforcement before resource creation.
+        let quota_module = Arc::new(tokio::sync::Mutex::new(QuotaModule::with_memory_store()));
+        let quota_router = quota_http_app(QuotaApiState::new(quota_module.clone()));
+
         let backend: Box<dyn HypervisorBackend> = match config.compute.backend.as_str() {
             "cloud-hypervisor" => Box::new(CloudHypervisor::new()),
             _ => Box::new(MockHypervisor::new()),
         };
-        let compute = Arc::new(tokio::sync::Mutex::new(ComputeModule::new(
-            backend,
-            Box::new(MemoryVmStore::default()),
-        )));
+        let nodes = Arc::new(tokio::sync::Mutex::new(NodeModule::with_memory_store()));
+        let compute = Arc::new(tokio::sync::Mutex::new(
+            ComputeModule::new(backend, Box::new(MemoryVmStore::default()))
+                .with_quota(quota_module.clone())
+                .with_nodes(nodes.clone()),
+        ));
 
         let network_backend: Box<dyn NetworkBackend> = match config.network.backend.as_str() {
             "ovn" => Box::new(crate::network::OvnNetworkBackend::new()),
             _ => Box::new(MockNetworkBackend::new()),
         };
-        let network = Arc::new(tokio::sync::Mutex::new(NetworkModule::new(
-            network_backend,
-            Box::new(MemoryNetworkStore::default()),
-        )));
+        let network = Arc::new(tokio::sync::Mutex::new(
+            NetworkModule::new(network_backend, Box::new(MemoryNetworkStore::default()))
+                .with_quota(quota_module.clone()),
+        ));
         let network_router = network_http_app(NetworkApiState::new(network.clone()));
 
         let storage_backend: Box<dyn StorageBackend> = match config.storage.backend.as_str() {
@@ -77,12 +93,32 @@ impl Daemon {
         let marketplace_router =
             marketplace_http_app(MarketplaceApiState::new(marketplace.clone()));
 
+        let audit_store = Arc::new(tokio::sync::Mutex::new(Box::new(MemoryAuditStore::new())
+            as Box<dyn crate::audit::store::AuditStore>));
+        let audit_state = AuditState { store: audit_store };
+
+        let node_router = node_http_app(NodeApiState::new(nodes.clone()));
+
         let resource_router = http_app(ApiState::new(compute.clone()))
             .merge(network_router)
             .merge(storage_router)
-            .merge(marketplace_router);
+            .merge(marketplace_router)
+            .merge(node_router)
+            .merge(quota_router);
 
-        // Build the full router: public login route + protected resource routes.
+        // Audit middleware: records mutations to the shared audit store.
+        let resource_router = resource_router.layer(
+            axum::middleware::from_fn_with_state(audit_state.clone(), audit_middleware),
+        );
+
+        // Public metadata routes (no auth): health + the OpenAPI contract
+        // itself, served under the versioned prefix.
+        let metadata_router = Router::new()
+            .route("/api/v1/healthz", get(healthz))
+            .route("/api/v1/openapi.yaml", get(openapi_spec));
+
+        // Build the full router. Everything lives under /api/v1 — this is the
+        // single versioned contract (T0.1); unversioned paths now 404.
         // THISCLOUD_AUTH_DISABLED=1 forces auth off regardless of config (dev mode).
         let auth_enabled = {
             let env_disabled = std::env::var("THISCLOUD_AUTH_DISABLED")
@@ -105,12 +141,20 @@ impl Daemon {
             let login_state = LoginState::new(secret, config.auth.jwt_ttl_secs);
             let login_router = login::router(login_state);
 
-            resource_router.layer(axum::middleware::from_fn(
-                crate::auth::middleware::jwt_auth,
-            )).merge(login_router)
+            // Protected surface: resource routes nested under /api/v1, JWT-gated.
+            // Login stays public but also lives under /api/v1.
+            let protected = Router::new()
+                .nest("/api/v1", resource_router)
+                .layer(axum::middleware::from_fn(
+                    crate::auth::middleware::jwt_auth,
+                ));
+
+            metadata_router
+                .merge(Router::new().nest("/api/v1", login_router))
+                .merge(protected)
         } else {
             tracing::warn!("Auth DISABLED — all endpoints open (dev mode)");
-            resource_router
+            metadata_router.merge(Router::new().nest("/api/v1", resource_router))
         };
 
         let mut module_manager = ModuleManager::new();
@@ -118,11 +162,13 @@ impl Daemon {
         module_manager.register(Box::new(NetworkModuleProxy));
         module_manager.register(Box::new(StorageModuleProxy));
         module_manager.register(Box::new(MarketplaceModuleProxy));
+        module_manager.register(Box::new(NodeModuleProxy));
 
         Self {
             config,
             event_bus: Arc::new(EventBus::new()),
             module_manager: Arc::new(Mutex::new(module_manager)),
+            node_module: nodes,
             http_router,
         }
     }
@@ -164,6 +210,16 @@ impl Daemon {
     pub async fn start(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting THISCLOUD daemon");
         tracing::info!("Cluster name: {}", self.config.cluster.name);
+
+        // T1.3: self-register the local master node when no nodes are known so
+        // the best-fit scheduler has a candidate in single-node/dev mode.
+        {
+            let mut nodes = self.node_module.lock().await;
+            if nodes.is_empty().await? {
+                let master = nodes.seed_local_master().await?;
+                tracing::info!("Self-registered master node: {} ({})", master.name, master.id);
+            }
+        }
 
         let mut manager = self.module_manager.lock().await;
         manager.start_all(&self.event_bus).await?;
@@ -246,6 +302,21 @@ impl Daemon {
     }
 }
 
+/// Health check (public): confirms the daemon HTTP surface is up.
+async fn healthz() -> impl axum::response::IntoResponse {
+    axum::Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// Serves the OpenAPI contract itself, embedded at build time.
+///
+/// The spec at docs/api/openapi.yaml is the single source of truth (T0.1).
+async fn openapi_spec() -> impl axum::response::IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/yaml")],
+        include_str!("../../../../docs/api/openapi.yaml"),
+    )
+}
+
 struct StorageModuleProxy;
 
 #[async_trait::async_trait]
@@ -298,6 +369,20 @@ impl Module for ComputeModuleProxy {
     }
     async fn stop(&mut self) -> anyhow::Result<()> {
         tracing::info!("Compute module stopped"); Ok(())
+    }
+    fn is_running(&self) -> bool { true }
+}
+
+struct NodeModuleProxy;
+
+#[async_trait::async_trait]
+impl Module for NodeModuleProxy {
+    fn name(&self) -> &str { "node" }
+    async fn start(&mut self, _event_bus: &EventBus) -> anyhow::Result<()> {
+        tracing::info!("Node module started"); Ok(())
+    }
+    async fn stop(&mut self) -> anyhow::Result<()> {
+        tracing::info!("Node module stopped"); Ok(())
     }
     fn is_running(&self) -> bool { true }
 }

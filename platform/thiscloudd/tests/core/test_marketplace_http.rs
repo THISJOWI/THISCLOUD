@@ -10,9 +10,12 @@ fn make_router() -> axum::Router {
         Box::new(MockMarketplaceBackend::default()),
         Box::new(MemoryMarketplaceStore::default()),
     );
-    app(MarketplaceApiState::new(Arc::new(tokio::sync::Mutex::new(
-        module,
-    ))))
+    axum::Router::new().nest(
+        "/api/v1",
+        app(MarketplaceApiState::new(Arc::new(tokio::sync::Mutex::new(
+            module,
+        )))),
+    )
 }
 
 #[tokio::test]
@@ -31,7 +34,7 @@ async fn test_marketplace_http_install_and_list() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/marketplace/apps")
+                .uri("/api/v1/marketplace/apps")
                 .header("content-type", "application/json")
                 .body(Body::from(create_body))
                 .unwrap(),
@@ -43,7 +46,7 @@ async fn test_marketplace_http_install_and_list() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/marketplace/apps")
+                .uri("/api/v1/marketplace/apps")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +61,7 @@ async fn test_marketplace_http_get_missing_404() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/marketplace/apps/nope")
+                .uri("/api/v1/marketplace/apps/nope")
                 .body(Body::empty())
                 .unwrap(),
         )

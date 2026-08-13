@@ -32,7 +32,7 @@ impl From<anyhow::Error> for AppError {
         let lower = msg.to_lowercase();
         if lower.contains("not found") {
             Self::NotFound(msg)
-        } else if lower.contains("already exists") {
+        } else if lower.contains("already exists") || lower.contains("exceeds quota") {
             Self::Conflict(msg)
         } else {
             Self::Internal(msg)

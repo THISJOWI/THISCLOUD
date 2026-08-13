@@ -1,0 +1,6 @@
+extends: [[spectral:oas, recommended]]
+rules:
+  operation-description: off
+  operation-operationId: off
+  operation-tag-defined: off
+  oas3-parameter-description: off

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test tests/api.test.mjs"
+    "test": "node --test tests/api.test.mjs",
+    "gen:api": "openapi-typescript ../../docs/api/openapi.yaml -o src/lib/api-types.ts"
   },
   "dependencies": {
     "@xterm/xterm": "^5.5.0",
@@ -19,6 +20,7 @@
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.5.4"
   }
 }

@@ -10,9 +10,12 @@ fn make_router() -> axum::Router {
         Box::new(MockNetworkBackend::new()),
         Box::new(MemoryNetworkStore::default()),
     );
-    app(NetworkApiState::new(Arc::new(tokio::sync::Mutex::new(
-        module,
-    ))))
+    axum::Router::new().nest(
+        "/api/v1",
+        app(NetworkApiState::new(Arc::new(tokio::sync::Mutex::new(
+            module,
+        )))),
+    )
 }
 
 #[tokio::test]
@@ -30,7 +33,7 @@ async fn test_network_http_create_and_list() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/networks")
+                .uri("/api/v1/networks")
                 .header("content-type", "application/json")
                 .body(Body::from(create_body))
                 .unwrap(),
@@ -42,7 +45,7 @@ async fn test_network_http_create_and_list() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/networks")
+                .uri("/api/v1/networks")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +61,7 @@ async fn test_network_http_get_and_delete() {
     let response = router
         .oneshot(
             Request::builder()
-                .uri("/networks/missing")
+                .uri("/api/v1/networks/missing")
                 .body(Body::empty())
                 .unwrap(),
         )
