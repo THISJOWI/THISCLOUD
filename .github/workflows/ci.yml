@@ -208,7 +208,7 @@ jobs:
 
       - name: Verify ISO output
         run: |
-          ls -lh "${{ runner.temp }}/iso-out/ThisCloud-*.iso"
+          ls -lh "${{ runner.temp }}/iso-out/ThisCloud-${{ steps.version.outputs.version }}-x86_64.iso"
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
