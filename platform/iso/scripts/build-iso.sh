@@ -159,7 +159,7 @@ if [ "${THISCLOUD_BUILD_ONLY:-0}" = "1" ]; then
   echo ""
   echo "==> Build-only mode (THISCLOUD_BUILD_ONLY=1) — compile artifacts staged in:"
   echo "    repo: $REPO/"
-  ls -lh "$REPO" 2>/dev/null | head -20
+  ls -lh "$REPO" 2>/dev/null | head -20 || true
   echo "    target: target/x86_64-unknown-linux-musl/"
   exit 0
 fi
@@ -205,4 +205,4 @@ echo "ISO: $OUT/ThisCloud-${VERSION}-x86_64.iso"
 ls -lh "$OUT"/ThisCloud-*.iso 2>/dev/null || echo "  (ISO not created - check build errors above)"
 echo ""
 echo "Repo contents:"
-ls -lhR "$REPO/" 2>/dev/null | head -50
+ls -lhR "$REPO/" 2>/dev/null | head -50 || true

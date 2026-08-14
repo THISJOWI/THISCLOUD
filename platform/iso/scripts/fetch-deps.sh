@@ -111,7 +111,7 @@ cp -f "$ISO_DIR/systemd/"*.service "$REPO/systemd/" 2>/dev/null \
 # Note: createrepo_c is called by build-iso.sh after this script.
 # Do NOT call it here to avoid double work.
 echo "==> Dependency RPMs staged in $RPM_DIR"
-ls -lh "$RPM_DIR" | head -30
+ls -lh "$RPM_DIR" | head -30 || true
 echo "==> Binary artifacts in $REPO:"
 ls -lh "$REPO"/*.{rpm,service} 2>/dev/null || true
 ls -lh "$REPO/cloud-hypervisor" "$REPO/thiscloud-api" 2>/dev/null || true
