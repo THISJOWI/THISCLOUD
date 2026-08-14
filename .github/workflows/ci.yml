@@ -222,17 +222,6 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Upload ISO to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          files: ${{ runner.temp }}/iso-out/ThisCloud-*.iso
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload ISO to Cloudflare R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
