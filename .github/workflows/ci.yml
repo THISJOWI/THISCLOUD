@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   rust:
     runs-on: ubuntu-latest
@@ -127,16 +130,17 @@ jobs:
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
             # Each successful main build bumps the version by 0.1 (0.9 -> 1.0).
-            # Source of truth: the highest existing release tag (vX.Y).
+            # Source of truth: the highest existing release tag (vX.Y or vX.Y.Z).
             LATEST=$(gh release list --limit 50 --json tagName \
               --jq '.[].tagName' 2>/dev/null \
-              | grep -E '^v[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+              | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1 || true)
             if [ -z "$LATEST" ]; then
               next="0.1"
             else
               ver="${LATEST#v}"
               major="${ver%%.*}"
-              minor="$(( 10#${ver##*.} + 1 ))"
+              rest="${ver#*.}"
+              minor="$(( 10#${rest%%.*} + 1 ))"
               if [ "$minor" -eq 10 ]; then
                 major=$(( major + 1 ))
                 minor=0
