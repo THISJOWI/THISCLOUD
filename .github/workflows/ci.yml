@@ -60,79 +60,125 @@ jobs:
           spectral_ruleset_file: true
           fail_severity: error
 
-  # ISO build runs only on tags (v*). Requires self-hosted AlmaLinux 9 x86_64 runner
-  # with: 8+ GB RAM, 50+ GB disk, tools pre-installed (lorax, xorriso, createrepo_c, musl-cross)
+  # ISO build, split in two jobs so it runs on GitHub-hosted runners (no
+  # self-hosted AlmaLinux runner exists):
+  #
+  #   iso-build    — ubuntu-latest: cross-compiles Rust (musl), builds RPMs,
+  #                  Go API and web-ui. No AlmaLinux needed. Stages artifacts.
+  #   iso-assemble — ubuntu-latest + container almalinux:9: downloads the base
+  #                  ISO, fetches dependency RPMs (needs dnf/EL repos), remixes
+  #                  the ISO. Uploads artifact; on tags, attaches to the release.
+  #
+  # Runs on every push (main + tags), not on PRs (too heavy).
   iso-build:
     needs: [rust, go, web-ui]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, almalinux, x64]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      VERSION: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify AlmaLinux 9 builder
-        run: |
-          cat /etc/almalinux-release || cat /etc/redhat-release
-          uname -m
-          free -h
-          df -h /data
-
-      - name: Check required tools
-        run: |
-          for tool in curl cpio createrepo_c xorriso implantisomd5 lorax rustup cargo go node; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "::error::Missing required tool: $tool"
-              exit 1
-            fi
-            echo "ok: $tool -> $(command -v $tool)"
-          done
-
-      - name: Check musl cross-compiler
-        run: |
-          if command -v x86_64-linux-musl-gcc >/dev/null 2>&1; then
-            echo "ok: x86_64-linux-musl-gcc -> $(command -v x86_64-linux-musl-gcc)"
-          elif command -v musl-gcc >/dev/null 2>&1; then
-            echo "ok: musl-gcc -> $(command -v musl-gcc)"
-          else
-            echo "::error::Missing musl cross-compiler (x86_64-linux-musl-gcc or musl-gcc)"
-            exit 1
-          fi
-
-      - name: Ensure AlmaLinux base ISO exists
-        run: |
-          ALMAISO="/data/AlmaLinux-9-latest-x86_64-minimal.iso"
-          if [ ! -f "$ALMAISO" ]; then
-            echo "::error::Base ISO not found at $ALMAISO"
-            echo "Download with: curl -fL -o $ALMAISO https://repo.almalinux.org/almalinux/9/isos/x86_64/AlmaLinux-9-latest-x86_64-minimal.iso"
-            exit 1
-          fi
-          echo "Base ISO found: $(ls -lh $ALMAISO)"
-
-      - name: Build ISO
-        env:
-          ALMAISO: /data/AlmaLinux-9-latest-x86_64-minimal.iso
-          OUT: /data/thiscloud-iso
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install musl cross-compiler + protoc
+        run: sudo apt-get update && sudo apt-get install -y musl-tools protobuf-compiler
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: platform
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Stage compile artifacts (build-only mode)
         run: |
           cd platform
-          bash iso/scripts/build-iso.sh
+          THISCLOUD_BUILD_ONLY=1 bash iso/scripts/build-iso.sh
+      - name: Package artifacts
+        run: |
+          mkdir -p iso-assets
+          tar -C platform -czf iso-assets/iso-assets.tgz iso/repo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iso-assets
+          path: iso-assets/iso-assets.tgz
+          retention-days: 7
+          if-no-files-found: error
+
+  iso-assemble:
+    needs: [iso-build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: iso-assets
+          path: iso-assets
+      - name: Restore stage artifacts
+        run: |
+          tar -C platform -xzf iso-assets/iso-assets.tgz
+          ls -lh platform/iso/repo | head -20
+
+      - name: Resolve VERSION
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_NAME:0:1}" == "v" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download AlmaLinux base ISO
+        run: |
+          ALMAISO="${{ github.workspace }}/.iso-cache/AlmaLinux-9-latest-x86_64-minimal.iso"
+          mkdir -p "$(dirname "$ALMAISO")"
+          if [ ! -f "$ALMAISO" ]; then
+            curl -fL -o "$ALMAISO" \
+              https://repo.almalinux.org/almalinux/9/isos/x86_64/AlmaLinux-9-latest-x86_64-minimal.iso
+          fi
+          ls -lh "$ALMAISO"
+
+      - name: Assemble ISO (almalinux:9 container, skip-compile mode)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/build" \
+            -w /build \
+            -e VERSION="$VERSION" \
+            -e THISCLOUD_SKIP_COMPILE=1 \
+            -e ALMAISO=/build/.iso-cache/AlmaLinux-9-latest-x86_64-minimal.iso \
+            -e OUT=/build/.iso-out \
+            -e WORK_DIR=/build/.iso-work \
+            almalinux:9 bash -lc '
+              set -euo pipefail
+              dnf install -y xorriso createrepo_c isomd5sum cpio gzip \
+                dnf-utils dnf-plugins-core python3
+              for tool in xorriso cpio createrepo_c implantisomd5 curl; do
+                command -v "$tool" >/dev/null 2>&1 || { echo "::error::missing $tool"; exit 1; }
+              done
+              cd platform
+              bash iso/scripts/build-iso.sh
+            '
 
       - name: Verify ISO output
         run: |
-          ISO_PATH="/data/thiscloud-iso/ThisCloud-${VERSION#v}-x86_64.iso"
-          if [ ! -f "$ISO_PATH" ]; then
-            echo "::error::ISO not found at $ISO_PATH"
-            exit 1
-          fi
-          echo "ISO built: $(ls -lh $ISO_PATH)"
-          echo "ISO_PATH=$ISO_PATH" >> $GITHUB_OUTPUT
+          ls -lh "${{ github.workspace }}/.iso-out/ThisCloud-*.iso"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thiscloud-iso
+          path: .iso-out/*.iso
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Upload ISO to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
-        if: success()
         with:
-          files: /data/thiscloud-iso/ThisCloud-${{ github.ref_name }}*.iso
+          files: .iso-out/ThisCloud-*.iso
           draft: false
           prerelease: false
           generate_release_notes: true

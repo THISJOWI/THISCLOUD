@@ -30,31 +30,51 @@ REPO="iso/repo"
 RPM_DIR="$REPO/thiscloud"
 VERSION="${VERSION:-0.1.0}"
 
-# Check required tools
-for tool in curl cpio createrepo_c xorriso implantisomd5; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "error: missing required tool: $tool"
-    echo "  Install it and re-run, or use: sudo ./iso/scripts/install-deps.sh"
-    exit 1
-  fi
-done
-
-if ! command -v lorax >/dev/null 2>&1; then
-  echo "warning: lorax not found; livemedia-creator ISO build unavailable"
+# CI split-build support:
+#   THISCLOUD_SKIP_COMPILE=1  skip steps [1-4] — use artifacts pre-staged in
+#                             iso/repo/ and target/ by another job/runner
+#                             (used by the container-based iso-assemble job).
+#   THISCLOUD_BUILD_ONLY=1    run steps [1-4] then exit — stage prebuilt
+#                             binaries without touching AlmaLinux-only deps
+#                             (used by the ubuntu-based iso-build job).
+if [ "${THISCLOUD_SKIP_COMPILE:-0}" = "1" ]; then
+  echo "==> [1-4/9] skipping compile steps (THISCLOUD_SKIP_COMPILE=1)"
+elif [ "${THISCLOUD_BUILD_ONLY:-0}" = "1" ]; then
+  echo "==> build-only mode: staging compile artifacts only"
 fi
 
-# Check ISO exists
-if [ ! -f "$ALMAISO" ]; then
-  echo "error: AlmaLinux ISO not found at: $ALMAISO"
-  echo "  Set ALMAISO=/path/to/AlmaLinux-9-latest-x86_64-minimal.iso"
-  exit 1
+# Check required tools (build-only mode compiles without AlmaLinux-only tools)
+if [ "${THISCLOUD_BUILD_ONLY:-0}" != "1" ]; then
+  for tool in curl cpio createrepo_c xorriso implantisomd5; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "error: missing required tool: $tool"
+      echo "  Install it and re-run, or use: sudo ./iso/scripts/install-deps.sh"
+      exit 1
+    fi
+  done
+
+  if ! command -v lorax >/dev/null 2>&1; then
+    echo "warning: lorax not found; livemedia-creator ISO build unavailable"
+  fi
+
+  # Check ISO exists
+  if [ ! -f "$ALMAISO" ]; then
+    echo "error: AlmaLinux ISO not found at: $ALMAISO"
+    echo "  Set ALMAISO=/path/to/AlmaLinux-9-latest-x86_64-minimal.iso"
+    exit 1
+  fi
 fi
 
 mkdir -p "$REPO" "$RPM_DIR"
-# Clean previous build artifacts
-rm -rf "$OUT"
-mkdir -p "$OUT"
+# Clean previous build artifacts (OUT only matters when assembling the ISO)
+if [ "${THISCLOUD_BUILD_ONLY:-0}" != "1" ]; then
+  rm -rf "$OUT"
+  mkdir -p "$OUT"
+fi
 
+if [ "${THISCLOUD_SKIP_COMPILE:-0}" = "1" ]; then
+  echo "==> [1-4/9] skipping compile steps (THISCLOUD_SKIP_COMPILE=1)"
+else
 echo "==> [1/9] Cross-compile Rust binaries"
 bash iso/scripts/cross-compile.sh
 
@@ -132,6 +152,16 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "    warning: node not found; skipping web-ui build"
   echo "    Install Node.js and re-run, or manually place files in $REPO/web-ui/"
+fi
+fi
+
+if [ "${THISCLOUD_BUILD_ONLY:-0}" = "1" ]; then
+  echo ""
+  echo "==> Build-only mode (THISCLOUD_BUILD_ONLY=1) — compile artifacts staged in:"
+  echo "    repo: $REPO/"
+  ls -lh "$REPO" 2>/dev/null | head -20
+  echo "    target: target/x86_64-unknown-linux-musl/"
+  exit 0
 fi
 
 echo "==> [5/9] Stage systemd service files"
