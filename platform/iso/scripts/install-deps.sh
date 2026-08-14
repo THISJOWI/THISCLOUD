@@ -27,8 +27,13 @@ dnf -y install \
 dnf -y install genisoimage 2>/dev/null \
   || echo "warning: genisoimage not found (EPEL only); continuing without it"
 
-echo "==> Installing build toolchain (Rust + glibc cross-build)"
+echo "==> Installing build toolchain (Rust + musl cross-compile)"
+# musl-gcc lives in EPEL on RHEL-family. It is required: the Rust musl target
+# compiles C deps (aws-lc-sys etc.) against musl headers, so a glibc-only gcc
+# produces broken binaries (undefined __isoc23_sscanf).
 dnf -y install gcc gcc-c++ make
+dnf -y install musl-gcc 2>/dev/null \
+  || echo "warning: musl-gcc not found (EPEL only); cross-compile.sh will fail until it is installed"
 
 # Install Go for building the API server
 GO_BIN="/usr/local/go/bin/go"
