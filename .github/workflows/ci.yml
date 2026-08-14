@@ -240,9 +240,6 @@ jobs:
             echo "::error::ISO not found: $ISO"
             exit 1
           fi
-          echo "diag: aws=$(aws --version 2>&1 | tr -d '\n')"
-          echo "diag: acct_len=${#R2_ACCOUNT_ID} bucket_len=${#R2_BUCKET} akid_len=${#R2_ACCESS_KEY_ID} sk_len=${#R2_SECRET_ACCESS_KEY}"
-          echo "diag: acct_hex=$(printf '%s' "$R2_ACCOUNT_ID" | od -An -tx1 | tr -d ' \n')"
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           export AWS_DEFAULT_REGION=auto
