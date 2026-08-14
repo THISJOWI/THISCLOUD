@@ -186,16 +186,23 @@ jobs:
             '
           rc=$?
           echo "assemble rc=$rc"
-          # docker rm -f removes files the container created in the bind mount,
-          # so secure the ISO into a host-only dir before that.
+          # docker rm -f removes files inside the bind mount (even host-written
+          # ones), so stage the ISO outside the bind first, then restore it
+          # into the workspace after the container is gone.
           if [ "$rc" -eq 0 ] && [ -n "$(ls "${{ github.workspace }}/.iso-out/"/*.iso 2>/dev/null)" ]; then
-            cp "${{ github.workspace }}/.iso-out/"/*.iso "${{ github.workspace }}/.iso-out-final/"
-            echo "ISO secured in .iso-out-final:"
-            ls -lah "${{ github.workspace }}/.iso-out-final/"
+            mkdir -p "$HOME/iso-staging"
+            cp "${{ github.workspace }}/.iso-out/"/*.iso "$HOME/iso-staging/"
+            echo "ISO staged outside bind:"
+            ls -lah "$HOME/iso-staging/"
           else
             echo "::error::no ISO produced in .iso-out"
           fi
           docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+          if ls "$HOME/iso-staging/"/*.iso >/dev/null 2>&1; then
+            cp "$HOME/iso-staging/"/*.iso "${{ github.workspace }}/.iso-out-final/"
+            echo "ISO restored to .iso-out-final after docker rm:"
+            ls -lah "${{ github.workspace }}/.iso-out-final/"
+          fi
           exit "$rc"
 
       - name: Verify ISO output
