@@ -144,13 +144,14 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           CONTAINER=thiscloud-iso-builder
+          mkdir -p "${{ github.workspace }}/.iso-out"
           docker run --name="$CONTAINER" \
             -v "${{ github.workspace }}:/build" \
             -w /build \
             -e VERSION="$VERSION" \
             -e THISCLOUD_SKIP_COMPILE=1 \
             -e ALMAISO=/build/.iso-cache/AlmaLinux-9-latest-x86_64-minimal.iso \
-            -e OUT=/out \
+            -e OUT=/build/.iso-out \
             -e WORK_DIR=/tmp/.iso-work \
             almalinux:9 bash -lc '
               set -euo pipefail
@@ -161,14 +162,11 @@ jobs:
               done
               cd platform
               bash iso/scripts/build-iso.sh
+              chown -R 1001:1001 "$OUT"
             '
           rc=$?
-          if [ "$rc" -eq 0 ]; then
-            mkdir -p "${{ github.workspace }}/.iso-out"
-            docker cp "$CONTAINER:/out/." "${{ github.workspace }}/.iso-out/"
-          else
-            echo "::error::ISO build failed (exit $rc)"
-          fi
+          echo "assemble rc=$rc"
+          ls -lah "${{ github.workspace }}/.iso-out/"
           docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
           exit "$rc"
 
