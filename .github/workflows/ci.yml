@@ -150,8 +150,8 @@ jobs:
             -e VERSION="$VERSION" \
             -e THISCLOUD_SKIP_COMPILE=1 \
             -e ALMAISO=/build/.iso-cache/AlmaLinux-9-latest-x86_64-minimal.iso \
-            -e OUT=/build/.iso-out \
-            -e WORK_DIR=/build/.iso-work \
+            -e OUT=/out \
+            -e WORK_DIR=/tmp/.iso-work \
             almalinux:9 bash -lc '
               set -euo pipefail
               dnf install -y xorriso createrepo_c isomd5sum cpio gzip \
@@ -165,7 +165,7 @@ jobs:
           rc=$?
           if [ "$rc" -eq 0 ]; then
             mkdir -p "${{ github.workspace }}/.iso-out"
-            docker cp "$CONTAINER:/build/.iso-out/." "${{ github.workspace }}/.iso-out/"
+            docker cp "$CONTAINER:/out/." "${{ github.workspace }}/.iso-out/"
           else
             echo "::error::ISO build failed (exit $rc)"
           fi
