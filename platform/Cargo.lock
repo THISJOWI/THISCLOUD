@@ -1767,6 +1767,7 @@ dependencies = [
  "etcd-client",
  "futures-util",
  "hmac",
+ "reqwest",
  "rustls-pemfile",
  "serde",
  "serde_json",

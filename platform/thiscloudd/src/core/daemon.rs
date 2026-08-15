@@ -21,7 +21,8 @@ use crate::metrics::MetricRegistry;
 use crate::network::http::{app as network_http_app, NetworkApiState};
 use crate::network::{MemoryNetworkStore, MockNetworkBackend, NetworkBackend, NetworkModule};
 use crate::node::http::{app as node_http_app, NodeApiState};
-use crate::node::NodeModule;
+use crate::node::model::NodeHeartbeat;
+use crate::node::{NodeModule, SelfHeartbeat};
 use crate::quota::http::{app as quota_http_app, QuotaApiState};
 use crate::quota::QuotaModule;
 use crate::s3::http::{app as s3_http_app, S3ApiState};
@@ -40,6 +41,7 @@ pub struct Daemon {
     node_module: Arc<Mutex<NodeModule>>,
     compute_module: Arc<Mutex<ComputeModule>>,
     ha_interval_secs: u64,
+    node_heartbeat_interval_secs: u64,
     http_router: axum::Router,
 }
 
@@ -206,6 +208,7 @@ impl Daemon {
         module_manager.register(Box::new(MetricsModuleProxy));
 
         let ha_interval_secs = config.ha.scan_interval_secs.max(1);
+        let node_heartbeat_interval_secs = config.node.heartbeat_interval_secs.max(1);
 
         Self {
             config,
@@ -214,6 +217,7 @@ impl Daemon {
             node_module: nodes,
             compute_module: compute,
             ha_interval_secs,
+            node_heartbeat_interval_secs,
             http_router,
         }
     }
@@ -264,6 +268,38 @@ impl Daemon {
                 let master = nodes.seed_local_master().await?;
                 tracing::info!("Self-registered master node: {} ({})", master.name, master.id);
             }
+        }
+
+        // Self-heartbeat loop: keeps this daemon's node entry online. A worker
+        // (config `[node]` with `id` + `master`) POSTs heartbeats to the master;
+        // a master/single node refreshes its own store in place.
+        {
+            let node_module = self.node_module.clone();
+            let self_id = self.config.node.id.clone().unwrap_or_else(|| "master-1".to_string());
+            let master = self.config.node.master.clone();
+            let interval = self.node_heartbeat_interval_secs;
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
+                let heartbeat = SelfHeartbeat::new(self_id, master.clone());
+                loop {
+                    ticker.tick().await;
+                    let usage = NodeHeartbeat {
+                        cpus_used: 0,
+                        memory_used_mb: 0,
+                        vms: 0,
+                    };
+                    // Only touch the local store on the local path; the remote
+                    // path must not hold the lock across the HTTP call.
+                    let mut guard = if master.is_some() {
+                        None
+                    } else {
+                        Some(node_module.lock().await)
+                    };
+                    if let Err(e) = heartbeat.beat(guard.as_deref_mut(), usage).await {
+                        tracing::warn!("self heartbeat failed: {:#}", e);
+                    }
+                }
+            });
         }
 
         let mut manager = self.module_manager.lock().await;

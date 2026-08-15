@@ -26,6 +26,7 @@ base64 = "0.22"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 rustls-pemfile = "2"
 futures-util = "0.3"
+reqwest.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

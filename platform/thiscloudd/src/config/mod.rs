@@ -6,6 +6,7 @@ pub mod image;
 pub mod marketplace;
 pub mod metrics;
 pub mod network;
+pub mod node;
 pub mod s3;
 pub mod storage;
 
@@ -17,6 +18,7 @@ pub use image::ImageConfig;
 pub use marketplace::MarketplaceConfig;
 pub use metrics::MetricsConfig;
 pub use network::NetworkConfig;
+pub use node::NodeIdentityConfig;
 pub use s3::S3Config;
 pub use storage::{PoolConfig, StorageConfig};
 
@@ -45,6 +47,8 @@ pub struct ThisCloudConfig {
     pub auth: AuthConfig,
     #[serde(default)]
     pub ha: HaConfig,
+    #[serde(default)]
+    pub node: NodeIdentityConfig,
 }
 
 impl ThisCloudConfig {
