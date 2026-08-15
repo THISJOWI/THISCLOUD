@@ -84,9 +84,9 @@ sudo thiscloud update         # download + install + restart services
 thiscloud update --version    # print the installed version
 ```
 
-- Every tagged release (`git tag v0.2.0 && git push origin v0.2.0`) triggers
-  `.github/workflows/release.yml`, which builds RPMs + binaries and attaches them
-  to the GitHub Release.
+- Every release branch (`release-v0.2.0`) triggers `.github/workflows/release.yml`,
+  which builds RPMs + binaries, attaches them to a GitHub Release tagged
+  `v0.2.0` at the branch head, and also kicks off the CI ISO build for that tag.
 - `thiscloud update` downloads `manifest.json` first, verifies the sha256 of every
   asset, backs up the current state to `/etc/thiscloud/backup-v<ver>/`, installs,
   restarts services, and records the new version in `/etc/thiscloud/version`.
