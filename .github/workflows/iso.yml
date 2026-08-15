@@ -37,6 +37,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Lint OpenAPI spec
+        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml -r .spectral.yaml -F error
       - name: Stage compile artifacts (build-only mode)
         run: |
           cd platform
