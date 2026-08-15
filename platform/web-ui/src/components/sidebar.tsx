@@ -14,6 +14,7 @@ const NAV_SECTIONS = [
     label: "INFRASTRUCTURE",
     links: [
       { href: "/admin/vms", label: "Virtual Machines", icon: "▣" },
+      { href: "/admin/images", label: "Images", icon: "⬡" },
       { href: "/admin/networks", label: "Networks", icon: "⬡" },
       { href: "/admin/storage", label: "Storage", icon: "⬢" },
     ],
@@ -60,7 +61,7 @@ export function Sidebar() {
       ))}
 
       <div className="sidebar-footer">
-        THISCLOUD v0.1
+        THISCLOUD v0.2.1
       </div>
     </aside>
   );

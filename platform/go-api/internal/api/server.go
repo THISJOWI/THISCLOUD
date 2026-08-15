@@ -37,12 +37,46 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/resources/{type}/{id}", s.getResource)
 	mux.HandleFunc("PUT /api/v1/resources/{type}/{id}", s.updateResource)
 	mux.HandleFunc("DELETE /api/v1/resources/{type}/{id}", s.deleteResource)
+	mux.HandleFunc("GET /api/v1/images", s.listImages)
+	mux.HandleFunc("POST /api/v1/images", s.registerImage)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// listImages proxies the daemon's image registry.
+func (s *Server) listImages(w http.ResponseWriter, r *http.Request) {
+	images, err := s.backend.ListImages(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if images == nil {
+		images = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, images)
+}
+
+// registerImage forwards an image registration to the daemon.
+func (s *Server) registerImage(w http.ResponseWriter, r *http.Request) {
+	body, err := readBody(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.backend.RegisterImage(r.Context(), payload); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, payload)
 }
 
 func (s *Server) listResources(w http.ResponseWriter, r *http.Request) {

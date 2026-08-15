@@ -29,6 +29,10 @@ type VM struct {
 	DiskGB     int      `json:"disk_gb"`
 	Image      string   `json:"image"`
 	Networks   []string `json:"networks"`
+	Node       string   `json:"node,omitempty"`
+	UEFI       bool     `json:"uefi,omitempty"`
+	TPM        bool     `json:"tpm,omitempty"`
+	HA         bool     `json:"ha,omitempty"`
 	Status     string   `json:"status"`
 }
 
@@ -57,7 +61,7 @@ type StoragePool struct {
 func (r VM) Type() ResourceType { return ResourceVM }
 func (r VM) ID() string         { return r.ResourceID }
 func (r VM) Attributes() map[string]any {
-	return map[string]any{
+	attrs := map[string]any{
 		"name":      r.Name,
 		"vcpus":     r.VCPUs,
 		"memory_mb": r.MemoryMB,
@@ -66,6 +70,19 @@ func (r VM) Attributes() map[string]any {
 		"networks":  r.Networks,
 		"status":    r.Status,
 	}
+	if r.Node != "" {
+		attrs["node"] = r.Node
+	}
+	if r.UEFI {
+		attrs["uefi"] = true
+	}
+	if r.TPM {
+		attrs["tpm"] = true
+	}
+	if r.HA {
+		attrs["ha"] = true
+	}
+	return attrs
 }
 
 func (r Network) Type() ResourceType { return ResourceNetwork }

@@ -1,25 +1,26 @@
 /* ============================================================
-   THISCLOUD — "liquid glass" dark UI
-   Design system: Stitch / Material You dynamic dark
-   Tokens mirror docs/superpowers/specs/ui-redesign.md
+   THISCLOUD — Stitch dark console UI
+   Tokens mirror the Stitch design system (projects/4448210041066562096)
    ============================================================ */
 
 :root {
-  /* Base palette (liquid glass) */
+  /* Base palette */
   --bg-body: #0c1322;
-  --bg-sidebar: rgba(18, 26, 46, 0.82);
-  --bg-header: rgba(15, 22, 40, 0.85);
+  --bg-sidebar: #111827;
+  --bg-header: #0f172a;
   --bg-card: #191f2f;
   --bg-card-hover: #20283c;
   --bg-input: #101a2e;
   --bg-row-hover: #1e2738;
 
-  /* Surfaces (glass) */
+  /* Surfaces */
   --surface: #191f2f;
   --surface-bright: #323949;
   --surface-tint: rgba(180, 197, 255, 0.06);
+  --surface-container-low: #161d2c;
+  --surface-container: #1b2436;
 
-  /* Borders — "no line" rule: hairline + translucency, no hard rules */
+  /* Borders */
   --border: rgba(180, 197, 255, 0.12);
   --border-light: rgba(180, 197, 255, 0.22);
   --border-focus: #b4c5ff;
@@ -29,7 +30,7 @@
   --fg-secondary: #b7c8e1;
   --fg-muted: #8d90a0;
 
-  /* Accent / brand (primary) */
+  /* Accent / brand */
   --accent: #b4c5ff;
   --accent-hover: #dce2f7;
   --accent-strong: #2563eb;
@@ -48,16 +49,13 @@
   /* Layout */
   --sidebar-width: 260px;
   --header-height: 52px;
-  --radius: 16px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
 
   /* Fonts */
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-jetbrains-mono), "SF Mono", "Fira Code", "Cascadia Code", monospace;
-
-  /* Glass effect */
-  --glass-blur: blur(20px) saturate(180%);
 }
 
 /* Reset */
@@ -75,9 +73,6 @@ html, body {
 
 body {
   background: var(--bg-body);
-  background-image:
-    radial-gradient(1200px 800px at 90% -10%, rgba(37, 99, 235, 0.22), transparent 60%),
-    radial-gradient(900px 600px at -10% 110%, rgba(180, 197, 255, 0.08), transparent 55%);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -103,12 +98,10 @@ a:hover {
   min-height: 100vh;
 }
 
-/* ---- Sidebar (liquid glass) ---- */
+/* ---- Sidebar ---- */
 .sidebar {
   width: var(--sidebar-width);
   background: var(--bg-sidebar);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -128,24 +121,23 @@ a:hover {
   border-bottom: 1px solid var(--border);
   font-weight: 700;
   font-size: 14px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--fg);
   flex-shrink: 0;
   gap: 10px;
 }
 
 .sidebar-brand .brand-icon {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
   border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   color: #fff;
   font-weight: 800;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
 .sidebar-section {
@@ -172,7 +164,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   color: var(--fg-secondary);
   font-size: 13px;
   transition: all 0.15s;
@@ -221,7 +213,7 @@ a:hover {
   min-height: 100vh;
 }
 
-/* ---- Top header (glass) ---- */
+/* ---- Top header ---- */
 .topbar {
   height: var(--header-height);
   display: flex;
@@ -229,8 +221,6 @@ a:hover {
   justify-content: space-between;
   padding: 0 26px;
   background: var(--bg-header);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   position: sticky;
@@ -347,11 +337,15 @@ a:hover {
   margin-top: 4px;
 }
 
-/* ---- Glass panel ---- */
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Panel ---- */
 .glass-panel {
   background: var(--bg-card);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 8px 32px rgba(3, 8, 20, 0.35);
@@ -368,41 +362,22 @@ a:hover {
 .stat-card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px 20px;
+  padding: 16px 18px;
   background: var(--bg-card);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s;
   position: relative;
   overflow: hidden;
 }
 
-.stat-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-strong), transparent);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
 .stat-card:hover {
   border-color: var(--border-light);
-  transform: translateY(-1px);
-}
-
-.stat-card:hover::before {
-  opacity: 1;
 }
 
 .stat-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .stat-label {
@@ -414,13 +389,13 @@ a:hover {
 }
 
 .stat-icon {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .stat-value {
@@ -436,13 +411,50 @@ a:hover {
   margin-top: 6px;
 }
 
+/* ---- Gauge ---- */
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.gauge-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  background: conic-gradient(var(--accent) calc(var(--gauge) * 1%), var(--surface-container) 0);
+}
+
+.gauge-ring::before {
+  content: "";
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  position: absolute;
+}
+
+.gauge-value {
+  position: relative;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gauge-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
 /* ---- Tables ---- */
 .table-wrap {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-card);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
   margin-bottom: 16px;
   overflow: hidden;
 }
@@ -473,7 +485,7 @@ a:hover {
 }
 
 .table-wrap thead {
-  background: var(--surface-tint);
+  background: var(--surface-container-low);
 }
 
 .table-wrap th {
@@ -652,7 +664,61 @@ a:hover {
   opacity: 0.5;
 }
 
-/* ---- Resource tiles (dashboard navigation) ---- */
+.form-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--fg);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+
+.form-checkbox input {
+  accent-color: var(--accent-strong);
+}
+
+/* ---- Resource tiles ---- */
 .resource-tile {
   display: flex;
   align-items: center;
@@ -660,12 +726,11 @@ a:hover {
   padding: 18px 20px;
   color: var(--fg) !important;
   text-decoration: none !important;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s;
 }
 
 .resource-tile:hover {
   border-color: var(--border-light);
-  transform: translateY(-1px);
 }
 
 .resource-tile-icon {
@@ -697,11 +762,118 @@ a:hover {
   font-size: 16px;
 }
 
-.form-input:disabled {
-  opacity: 0.5;
+/* ============================================================
+   MODAL (Proxmox-style create VM)
+   ============================================================ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 16, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 24px;
 }
 
-/* ---- Error / Status messages ---- */
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  font-family: inherit;
+}
+.modal-close:hover {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-container-low);
+}
+
+.modal-tab {
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.modal-tab:hover {
+  color: var(--fg-secondary);
+}
+
+.modal-tab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- Inline image import ---- */
+.import-box {
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin-top: 12px;
+  background: var(--surface-container-low);
+}
+
+/* ============================================================
+   ERROR / STATUS MESSAGES
+   ============================================================ */
+
 .error {
   color: var(--error);
   font-size: 13px;
@@ -715,11 +887,6 @@ a:hover {
 .status-offline {
   color: var(--error);
 }
-
-/* ============================================================
-   LOGIN PAGE — now handled by (auth)/login.module.css
-   (Global login rules removed to prevent CSS conflicts)
-   ============================================================ */
 
 /* ============================================================
    FOCUS & SELECTION
@@ -849,7 +1016,6 @@ a:hover {
   font-size: 12px;
 }
 
-/* ---- ID column monospace ---- */
 .id-cell {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -859,7 +1025,6 @@ a:hover {
   text-overflow: ellipsis;
 }
 
-/* ---- Scrollbar ---- */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -878,12 +1043,10 @@ a:hover {
   background: var(--border-light);
 }
 
-/* ---- Anchor scroll offset for fixed header ---- */
 [id] {
   scroll-margin-top: calc(var(--header-height) + 12px);
 }
 
-/* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

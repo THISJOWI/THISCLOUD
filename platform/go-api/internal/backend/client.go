@@ -40,6 +40,37 @@ func (c *Client) Delete(ctx context.Context, collection, id string) error {
 	return c.request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", collection, id), nil)
 }
 
+// ListImages returns the daemon's image registry (GET /images).
+func (c *Client) ListImages(ctx context.Context) ([]map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/images", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("daemon returned %s: %s", resp.Status, strings.TrimSpace(string(data)))
+	}
+
+	var images []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&images); err != nil {
+		return nil, err
+	}
+	return images, nil
+}
+
+// RegisterImage forwards a registration payload to the daemon (POST /images).
+func (c *Client) RegisterImage(ctx context.Context, image any) error {
+	return c.request(ctx, http.MethodPost, "images", image)
+}
+
 func (c *Client) request(ctx context.Context, method, path string, body any) error {
 	var reader io.Reader
 	if body != nil {

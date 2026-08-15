@@ -2,21 +2,32 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listResources, createResource, deleteResource, Resource } from "@/lib/api";
+import { listResources, deleteResource, Resource } from "@/lib/api";
 import { ResourceTable } from "@/components/ui";
+import { CreateVmModal } from "@/components/create-vm-modal";
 import { Header } from "@/components/header";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function VmsPage() {
   const { authorized, error: authError } = useAdminAuth("/?redirect=/admin/vms");
   const [vms, setVms] = useState<Resource[]>([]);
+  const [networks, setNetworks] = useState<string[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   async function refresh() {
-    setVms(await listResources("thiscloud_vm").catch(() => []));
+    const [v, n] = await Promise.all([
+      listResources("thiscloud_vm").catch(() => []),
+      listResources("thiscloud_network").catch(() => []),
+    ]);
+    setVms(v);
+    setNetworks(
+      n
+        .map((x) => String(x.name || ""))
+        .filter((x) => x.length > 0)
+        .sort()
+    );
   }
 
   useEffect(() => {
@@ -24,32 +35,6 @@ export default function VmsPage() {
       refresh().catch((e) => setError(String(e)));
     }
   }, [authorized]);
-
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || creating) return;
-    if (name.trim().length < 2) {
-      setError("VM name must be at least 2 characters");
-      return;
-    }
-    setCreating(true);
-    setError("");
-    try {
-      // No client-generated id — the daemon assigns the canonical id.
-      await createResource("thiscloud_vm", {
-        name: name.trim(),
-        vcpus: 2,
-        memory_mb: 2048,
-        disk_gb: 20,
-      });
-      setName("");
-      await refresh();
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setCreating(false);
-    }
-  }
 
   async function onDelete(id: string) {
     if (!confirm(`Delete VM ${id}? This cannot be undone.`)) return;
@@ -103,32 +88,18 @@ export default function VmsPage() {
             <h1 className="page-title">Virtual Machines</h1>
             <p className="page-subtitle">Create and manage virtual machines</p>
           </div>
+          <div className="page-actions">
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+              + Create VM
+            </button>
+          </div>
         </div>
 
         {error && <p className="error">{error}</p>}
 
-        <div className="glass-panel" style={{ padding: 16, marginBottom: 16 }}>
-          <form onSubmit={onCreate} className="form-row" style={{ marginBottom: 0 }}>
-            <input
-              className="form-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="VM name"
-              disabled={creating}
-            />
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={creating || !name}
-            >
-              {creating ? "Creating..." : "Create VM"}
-            </button>
-          </form>
-        </div>
-
         <ResourceTable
           title="All Virtual Machines"
-          headers={["id", "name", "vcpus", "memory_mb", "status"]}
+          headers={["id", "name", "vcpus", "memory_mb", "image", "status"]}
           rows={vms}
           onDelete={(_, id) => onDelete(id)}
         />
@@ -138,6 +109,14 @@ export default function VmsPage() {
             <div className="spinner" style={{ marginRight: 0 }} />
             <span className="text-muted">Deleting {deleting}...</span>
           </div>
+        )}
+
+        {showCreate && (
+          <CreateVmModal
+            networks={networks}
+            onClose={() => setShowCreate(false)}
+            onCreated={() => refresh()}
+          />
         )}
       </main>
     </>

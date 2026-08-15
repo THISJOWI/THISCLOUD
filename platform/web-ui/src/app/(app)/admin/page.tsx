@@ -7,6 +7,31 @@ import { StatCard, ResourceTable } from "@/components/ui";
 import { Header } from "@/components/header";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
+function Gauge({
+  value,
+  label,
+  max = 100,
+}: {
+  value: number;
+  label: string;
+  max?: number;
+}) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="gauge" style={{ ["--gauge" as string]: pct }}>
+      <div className="gauge-ring">
+        <span className="gauge-value">{pct}%</span>
+      </div>
+      <div>
+        <div className="stat-label">{label}</div>
+        <div className="gauge-label">
+          {value} / {max}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { authorized, error: authError } = useAdminAuth();
   const [vms, setVms] = useState<Resource[]>([]);
@@ -31,7 +56,21 @@ export default function AdminPage() {
     }
   }, [authorized]);
 
-  const running = vms.filter((v) => String(v.status).toLowerCase() === "running").length;
+  const running = vms.filter(
+    (v) => String(v.status).toLowerCase() === "running"
+  ).length;
+  const totalCpus = vms.reduce(
+    (acc, v) => acc + (Number(v.vcpus) || 0),
+    0
+  );
+  const totalMemGb = vms.reduce(
+    (acc, v) => acc + (Number(v.memory_mb) || 0) / 1024,
+    0
+  );
+  const totalDiskGb = vms.reduce(
+    (acc, v) => acc + (Number(v.disk_gb) || 0),
+    0
+  );
 
   if (authorized === null) {
     return (
@@ -82,12 +121,39 @@ export default function AdminPage() {
           <StatCard label="Storage Pools" value={pools.length} icon="⬢" accent="var(--warn)" />
         </div>
 
+        <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+          <div className="glass-panel" style={{ padding: 16 }}>
+            <Gauge value={totalCpus} label="CPU cores allocated" max={16} />
+          </div>
+          <div className="glass-panel" style={{ padding: 16 }}>
+            <Gauge value={totalMemGb} label="Memory allocated (GB)" max={32} />
+          </div>
+          <div className="glass-panel" style={{ padding: 16 }}>
+            <Gauge value={totalDiskGb} label="Disk allocated (GB)" max={100} />
+          </div>
+          <div className="glass-panel" style={{ padding: 16 }}>
+            <Gauge
+              value={vms.length}
+              label="VM utilization"
+              max={Math.max(8, vms.length)}
+            />
+          </div>
+        </div>
+
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           <Link href="/admin/vms" className="glass-panel resource-tile">
             <div className="resource-tile-icon" style={{ color: "var(--accent)" }}>▣</div>
             <div>
               <div className="resource-tile-title">Virtual Machines</div>
               <div className="resource-tile-desc">Create, manage and monitor VMs</div>
+            </div>
+            <span className="resource-tile-arrow">→</span>
+          </Link>
+          <Link href="/admin/images" className="glass-panel resource-tile">
+            <div className="resource-tile-icon" style={{ color: "var(--info)" }}>⬡</div>
+            <div>
+              <div className="resource-tile-title">Images</div>
+              <div className="resource-tile-desc">Image registry — disks and ISOs</div>
             </div>
             <span className="resource-tile-arrow">→</span>
           </Link>
@@ -111,7 +177,7 @@ export default function AdminPage() {
 
         <ResourceTable
           title="Virtual Machines"
-          headers={["id", "name", "vcpus", "memory_mb", "status"]}
+          headers={["id", "name", "vcpus", "memory_mb", "image", "status"]}
           rows={vms}
         />
       </main>

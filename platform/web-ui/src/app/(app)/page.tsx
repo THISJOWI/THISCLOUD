@@ -75,7 +75,7 @@ export default async function PortalPage() {
 
         <ResourceTable
           title="Virtual Machines"
-          headers={["id", "name", "vcpus", "memory_mb", "status"]}
+          headers={["id", "name", "vcpus", "memory_mb", "image", "status"]}
           rows={vms}
         />
       </main>

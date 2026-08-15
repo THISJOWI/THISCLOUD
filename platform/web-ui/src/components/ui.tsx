@@ -73,6 +73,16 @@ export function ResourceTable({
     const val = row[h];
     if (h === "status") return <StatusBadge status={String(val ?? "")} />;
     if (h === "id") return <span className="id-cell">{String(val ?? "")}</span>;
+    if (Array.isArray(val)) {
+      const arr = val as unknown[];
+      if (arr.length === 0) return <span className="text-muted">—</span>;
+      return (
+        <span className="id-cell" style={{ maxWidth: 200 }}>
+          {arr.join(", ")}
+        </span>
+      );
+    }
+    if (h === "image" && !val) return <span className="text-muted">—</span>;
     return String(val ?? "");
   }
 

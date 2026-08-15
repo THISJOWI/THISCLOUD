@@ -142,3 +142,43 @@ export async function health(): Promise<boolean> {
     return false;
   }
 }
+
+export type Image = {
+  id?: string;
+  name: string;
+  source: string;
+  sha256?: string;
+  size_bytes?: number;
+  format?: string;
+  os_family?: string;
+  version?: string;
+  template?: boolean;
+  status?: string;
+};
+
+export async function listImages(): Promise<Image[]> {
+  const res = await apiFetch("/api/v1/images");
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "unknown error");
+    console.error(`[api] GET /api/v1/images failed (${res.status}):`, raw);
+    throw new Error(`API error (status ${res.status})`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+export async function registerImage(
+  attrs: Record<string, unknown>
+): Promise<Image> {
+  const res = await apiFetch("/api/v1/images", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(attrs),
+  });
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "unknown error");
+    console.error(`[api] POST /api/v1/images failed (${res.status}):`, raw);
+    throw new Error(`API error (status ${res.status})`);
+  }
+  return res.json();
+}
