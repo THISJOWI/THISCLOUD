@@ -31,6 +31,9 @@ name = "thiscloud-cluster"
 ip = "{}"
 role = "{}"
 
+[node]
+role = "{}"
+
 [compute]
 backend = "cloud-hypervisor"
 http_bind = "127.0.0.1"
@@ -45,7 +48,7 @@ backend = "linstor"
 [marketplace]
 backend = "docker"
 "#,
-        ip, role
+        ip, role, role
     );
 
     let config_path = config_dir.join("config.toml");

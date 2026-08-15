@@ -5,6 +5,7 @@ fn config(port: u16, data_dir: &str) -> thiscloudd::config::EtcdConfig {
         peer_port: port + 1,
         data_dir: data_dir.to_string(),
         quota_backend: "1GB".to_string(),
+        endpoints: Vec::new(),
     }
 }
 

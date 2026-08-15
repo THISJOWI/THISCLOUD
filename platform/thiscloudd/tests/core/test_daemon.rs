@@ -30,7 +30,7 @@ impl Module for TestModule {
 #[tokio::test]
 async fn test_daemon_creation() {
     let config = thiscloudd::config::ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     assert_eq!(daemon.module_count().await, 8);
 }
@@ -42,7 +42,7 @@ async fn test_daemon_with_config() {
 name = "test-cluster"
 "#;
     let config: thiscloudd::config::ThisCloudConfig = toml::from_str(config_content).unwrap();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     assert_eq!(daemon.cluster_name(), "test-cluster");
     assert_eq!(daemon.module_count().await, 8);
@@ -51,7 +51,7 @@ name = "test-cluster"
 #[tokio::test]
 async fn test_daemon_register_module() {
     let config = thiscloudd::config::ThisCloudConfig::default();
-    let mut daemon = thiscloudd::core::Daemon::new(config);
+    let mut daemon = thiscloudd::core::Daemon::new(config, None);
 
     daemon.register_module(Box::new(TestModule {
         name: "test-module".to_string(),
@@ -64,7 +64,7 @@ async fn test_daemon_register_module() {
 #[tokio::test]
 async fn test_daemon_start_stop() {
     let config = thiscloudd::config::ThisCloudConfig::default();
-    let mut daemon = thiscloudd::core::Daemon::new(config);
+    let mut daemon = thiscloudd::core::Daemon::new(config, None);
 
     daemon.register_module(Box::new(TestModule {
         name: "test-module".to_string(),

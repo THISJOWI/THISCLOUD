@@ -67,9 +67,12 @@ pub async fn run_join(master: &str, ip: Option<&str>) -> anyhow::Result<()> {
             .or_insert_with(|| toml::Value::Table(Default::default()));
         if let toml::Value::Table(t) = node_cfg {
             t.insert("id".to_string(), toml::Value::String(node_id));
+            t.insert("role".to_string(), toml::Value::String("worker".to_string()));
             t.insert(
-                "master".to_string(),
-                toml::Value::String(master.trim_end_matches('/').to_string()),
+                "masters".to_string(),
+                toml::Value::Array(vec![toml::Value::String(
+                    master.trim_end_matches('/').to_string(),
+                )]),
             );
         } else {
             anyhow::bail!("[node] section is not a table");

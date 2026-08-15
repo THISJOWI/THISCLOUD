@@ -1,32 +1,39 @@
 use super::{EventBus, Module, ModuleManager};
 use crate::audit::middleware::{audit_middleware, AuditState};
-use crate::audit::MemoryAuditStore;
+use crate::audit::{EtcdAuditStore, MemoryAuditStore};
 use crate::auth::login::{self, LoginState};
 use crate::compute::http::{app as http_app, ApiState};
 use crate::compute::{
-    CloudHypervisor, ComputeModule, HypervisorBackend, MemoryVmStore, MockHypervisor,
+    CloudHypervisor, ComputeModule, EtcdVmStore, HypervisorBackend, MemoryVmStore, MockHypervisor,
+    VmConfig,
 };
 use crate::config::ThisCloudConfig;
+use crate::core::EtcdClient;
 use crate::image::http::{app as image_http_app, ImageApiState};
 use crate::image::{
-    ImageBackend, ImageModule, LocalImageBackend, MemoryImageStore, MockImageBackend,
+    EtcdImageStore, ImageBackend, ImageModule, LocalImageBackend, MemoryImageStore,
+    MockImageBackend,
 };
 use crate::marketplace::http::{app as marketplace_http_app, MarketplaceApiState};
 use crate::marketplace::{
-    DockerHubBackend, MarketplaceBackend, MarketplaceModule, MemoryMarketplaceStore,
-    MockMarketplaceBackend,
+    DockerHubBackend, EtcdMarketplaceStore, MarketplaceBackend, MarketplaceModule,
+    MemoryMarketplaceStore, MockMarketplaceBackend,
 };
 use crate::metrics::http::{app as metrics_http_app, MetricsApiState};
 use crate::metrics::MetricRegistry;
 use crate::network::http::{app as network_http_app, NetworkApiState};
-use crate::network::{MemoryNetworkStore, MockNetworkBackend, NetworkBackend, NetworkModule};
+use crate::network::{
+    EtcdNetworkStore, MemoryNetworkStore, MockNetworkBackend, NetworkBackend, NetworkModule,
+};
 use crate::node::http::{app as node_http_app, NodeApiState};
-use crate::node::model::NodeHeartbeat;
-use crate::node::{NodeModule, SelfHeartbeat};
+use crate::node::model::{Node, NodeHeartbeat, NodeRole, NodeState};
+use crate::node::{EtcdNodeStore, NodeModule, SelfHeartbeat};
 use crate::quota::http::{app as quota_http_app, QuotaApiState};
-use crate::quota::QuotaModule;
+use crate::quota::{EtcdQuotaStore, QuotaModule};
 use crate::s3::http::{app as s3_http_app, S3ApiState};
-use crate::s3::{MemoryS3Store, MockS3Backend, RadosgwBackend, S3Backend, S3Module};
+use crate::s3::{
+    EtcdS3Store, MemoryS3Store, MockS3Backend, RadosgwBackend, S3Backend, S3Module,
+};
 use crate::storage::http::{app as storage_http_app, StorageApiState};
 use crate::storage::{MemoryStorageStore, MockStorageBackend, StorageBackend, StorageModule};
 use axum::routing::get;
@@ -55,43 +62,117 @@ fn random_secret() -> String {
     format!("{:032x}", t)
 }
 
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn local_hostname() -> String {
+    std::env::var("HOSTNAME").unwrap_or_else(|_| {
+        std::fs::read_to_string("/etc/hostname")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|_| "localhost".to_string())
+    })
+}
+
+fn available_cpus() -> u32 {
+    std::thread::available_parallelism()
+        .map(|p| p.get() as u32)
+        .unwrap_or(1)
+}
+
+/// Total physical memory in MB, read from /proc/meminfo. 0 = unknown.
+fn total_memory_mb() -> u32 {
+    let meminfo = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+    for line in meminfo.lines() {
+        if let Some(rest) = line.strip_prefix("MemTotal:") {
+            let kb: u64 = rest.trim().trim_end_matches("kB").trim().parse().unwrap_or(0);
+            return (kb / 1024) as u32;
+        }
+    }
+    0
+}
+
+/// Default agent id when no explicit `[node] id` is configured: masters get a
+/// hostname-derived unique id (multi-master), bare nodes keep the legacy
+/// `master-1` seed.
+fn agent_self_id(role: &Option<String>) -> String {
+    match role.as_deref() {
+        Some("master") | Some("worker") => local_hostname(),
+        _ => "master-1".to_string(),
+    }
+}
+
+/// Sum VM resources into a node usage report.
+fn aggregate_usage(vms: &[VmConfig]) -> NodeHeartbeat {
+    let (cpus, mem) = vms.iter().fold((0, 0), |(c, m), v| (c + v.cpus, m + v.memory_mb));
+    NodeHeartbeat {
+        cpus_used: cpus,
+        memory_used_mb: mem,
+        vms: vms.len() as u32,
+    }
+}
+
 impl Daemon {
-    pub fn new(config: ThisCloudConfig) -> Self {
+    pub fn new(config: ThisCloudConfig, etcd: Option<EtcdClient>) -> Self {
         // Shared per-tenant quotas (T0.5): wired into compute/network modules
         // for enforcement before resource creation.
-        let quota_module = Arc::new(tokio::sync::Mutex::new(QuotaModule::with_memory_store()));
+        let quota_store: Box<dyn crate::quota::QuotaStore> = match &etcd {
+            Some(c) => Box::new(EtcdQuotaStore::new(c.clone())),
+            None => Box::new(crate::quota::MemoryQuotaStore::default()),
+        };
+        let quota_module = Arc::new(tokio::sync::Mutex::new(QuotaModule::new(quota_store)));
         let quota_router = quota_http_app(QuotaApiState::new(quota_module.clone()));
 
         let backend: Box<dyn HypervisorBackend> = match config.compute.backend.as_str() {
             "cloud-hypervisor" => Box::new(CloudHypervisor::new()),
             _ => Box::new(MockHypervisor::new()),
         };
-        let nodes = Arc::new(tokio::sync::Mutex::new(NodeModule::with_memory_store()));
+        let nodes = Arc::new(tokio::sync::Mutex::new(match &etcd {
+            Some(c) => NodeModule::new(Box::new(EtcdNodeStore::new(c.clone()))),
+            None => NodeModule::with_memory_store(),
+        }));
         let image_backend: Box<dyn ImageBackend> = match config.image.backend.as_str() {
             "local" => Box::new(LocalImageBackend::new(config.image.images_dir.clone())),
             _ => Box::new(MockImageBackend::default()),
         };
-        let image = Arc::new(tokio::sync::Mutex::new(ImageModule::new(
-            image_backend,
-            Box::new(MemoryImageStore::default()),
-        )));
+        let image = Arc::new(tokio::sync::Mutex::new(match &etcd {
+            Some(c) => ImageModule::new(
+                image_backend,
+                Box::new(EtcdImageStore::new(c.clone())),
+            ),
+            None => ImageModule::new(image_backend, Box::new(MemoryImageStore::default())),
+        }));
         let image_router = image_http_app(ImageApiState::new(image.clone()));
-        let compute = Arc::new(tokio::sync::Mutex::new(
-            ComputeModule::new(backend, Box::new(MemoryVmStore::default()))
+        let compute = Arc::new(tokio::sync::Mutex::new({
+            let module = match &etcd {
+                Some(c) => ComputeModule::new(backend, Box::new(EtcdVmStore::new(c.clone()))),
+                None => ComputeModule::new(backend, Box::new(MemoryVmStore::default())),
+            };
+            module
                 .with_quota(quota_module.clone())
                 .with_nodes(nodes.clone())
                 .with_images(image.clone())
-                .with_ha(config.ha.enabled, config.ha.quorum),
-        ));
+                .with_ha(config.ha.enabled, config.ha.quorum)
+        }));
 
         let network_backend: Box<dyn NetworkBackend> = match config.network.backend.as_str() {
             "ovn" => Box::new(crate::network::OvnNetworkBackend::new()),
             _ => Box::new(MockNetworkBackend::new()),
         };
-        let network = Arc::new(tokio::sync::Mutex::new(
-            NetworkModule::new(network_backend, Box::new(MemoryNetworkStore::default()))
-                .with_quota(quota_module.clone()),
-        ));
+        let network = Arc::new(tokio::sync::Mutex::new({
+            let module = match &etcd {
+                Some(c) => NetworkModule::new(
+                    network_backend,
+                    Box::new(EtcdNetworkStore::new(c.clone())),
+                )
+                .with_etcd_stores(c.clone()),
+                None => NetworkModule::new(network_backend, Box::new(MemoryNetworkStore::default())),
+            };
+            module.with_quota(quota_module.clone())
+        }));
         let network_router = network_http_app(NetworkApiState::new(network.clone()));
 
         let storage_backend: Box<dyn StorageBackend> = match config.storage.backend.as_str() {
@@ -99,10 +180,13 @@ impl Daemon {
             "ceph" => Box::new(crate::storage::CephBackend::new()),
             _ => Box::new(MockStorageBackend::new()),
         };
-        let storage = Arc::new(tokio::sync::Mutex::new(StorageModule::new(
-            storage_backend,
-            Box::new(MemoryStorageStore::default()),
-        )));
+        let storage = Arc::new(tokio::sync::Mutex::new(match &etcd {
+            Some(c) => StorageModule::new(
+                storage_backend,
+                Box::new(crate::storage::EtcdStorageStore::new(c.clone())),
+            ),
+            None => StorageModule::new(storage_backend, Box::new(MemoryStorageStore::default())),
+        }));
         let storage_router = storage_http_app(StorageApiState::new(storage.clone()));
 
         let marketplace_backend: Box<dyn MarketplaceBackend> =
@@ -110,25 +194,34 @@ impl Daemon {
                 "docker" => Box::new(DockerHubBackend::new()),
                 _ => Box::new(MockMarketplaceBackend::default()),
             };
-        let marketplace = Arc::new(tokio::sync::Mutex::new(MarketplaceModule::new(
-            marketplace_backend,
-            Box::new(MemoryMarketplaceStore::default()),
-        )));
+        let marketplace = Arc::new(tokio::sync::Mutex::new(match &etcd {
+            Some(c) => MarketplaceModule::new(
+                marketplace_backend,
+                Box::new(EtcdMarketplaceStore::new(c.clone())),
+            ),
+            None => MarketplaceModule::new(
+                marketplace_backend,
+                Box::new(MemoryMarketplaceStore::default()),
+            ),
+        }));
         let marketplace_router =
             marketplace_http_app(MarketplaceApiState::new(marketplace.clone()));
 
-        let audit_store = Arc::new(tokio::sync::Mutex::new(Box::new(MemoryAuditStore::new())
-            as Box<dyn crate::audit::store::AuditStore>));
+        let audit_store: Box<dyn crate::audit::store::AuditStore> = match &etcd {
+            Some(c) => Box::new(EtcdAuditStore::new(c.clone())),
+            None => Box::new(MemoryAuditStore::new()),
+        };
+        let audit_store = Arc::new(tokio::sync::Mutex::new(audit_store));
         let audit_state = AuditState { store: audit_store };
 
         let s3_backend: Box<dyn S3Backend> = match config.s3.backend.as_str() {
             "radosgw" => Box::new(RadosgwBackend::new(config.s3.gateway_host.clone())),
             _ => Box::new(MockS3Backend::new()),
         };
-        let s3 = Arc::new(tokio::sync::Mutex::new(S3Module::new(
-            s3_backend,
-            Box::new(MemoryS3Store::default()),
-        )));
+        let s3 = Arc::new(tokio::sync::Mutex::new(match &etcd {
+            Some(c) => S3Module::new(s3_backend, Box::new(EtcdS3Store::new(c.clone()))),
+            None => S3Module::new(s3_backend, Box::new(MemoryS3Store::default())),
+        }));
         let s3_router = s3_http_app(S3ApiState::new(s3.clone()));
 
         let metric_registry = Arc::new(MetricRegistry::new());
@@ -260,43 +353,90 @@ impl Daemon {
         tracing::info!("Starting THISCLOUD daemon");
         tracing::info!("Cluster name: {}", self.config.cluster.name);
 
-        // T1.3: self-register the local master node when no nodes are known so
-        // the best-fit scheduler has a candidate in single-node/dev mode.
-        {
+        // Agent identity: self-register / seed this node's entry so state
+        // survives restarts and masters discover each other in the shared etcd.
+        let hostname = local_hostname();
+        let legacy = self.config.node.id.is_none() && self.config.node.role.is_none();
+        let self_id = self
+            .config
+            .node
+            .id
+            .clone()
+            .unwrap_or_else(|| agent_self_id(&self.config.node.role));
+        let role = match self.config.node.role.as_deref() {
+            Some("worker") => NodeRole::Worker,
+            Some("master") => NodeRole::Master,
+            None if legacy => NodeRole::Master,
+            _ => NodeRole::Worker,
+        };
+        let agent_node = Node {
+            id: self_id.clone(),
+            name: hostname.clone(),
+            role: role.clone(),
+            address: format!(
+                "{}:{}",
+                self.config.compute.http_bind, self.config.compute.http_port
+            ),
+            hostname,
+            cpus_total: available_cpus(),
+            cpus_used: 0,
+            memory_total_mb: total_memory_mb(),
+            memory_used_mb: 0,
+            vms: 0,
+            state: NodeState::Online,
+            last_seen_secs: now_secs(),
+            ttl_secs: 30,
+            labels: Vec::new(),
+        };
+
+        // Seed the shared store when this daemon owns it (no remote master).
+        let masters = self.config.node.masters.clone();
+        if masters.is_empty() {
             let mut nodes = self.node_module.lock().await;
             if nodes.is_empty().await? {
-                let master = nodes.seed_local_master().await?;
-                tracing::info!("Self-registered master node: {} ({})", master.name, master.id);
+                let seeded = nodes.register(agent_node.clone()).await?;
+                tracing::info!(
+                    "Self-registered node: {} ({}) role={:?}",
+                    seeded.name,
+                    seeded.id,
+                    seeded.role
+                );
             }
         }
 
-        // Self-heartbeat loop: keeps this daemon's node entry online. A worker
-        // (config `[node]` with `id` + `master`) POSTs heartbeats to the master;
-        // a master/single node refreshes its own store in place.
+        // Agent loop: register + heartbeat real usage, rotating masters.
         {
             let node_module = self.node_module.clone();
-            let self_id = self.config.node.id.clone().unwrap_or_else(|| "master-1".to_string());
-            let master = self.config.node.master.clone();
+            let compute_module = self.compute_module.clone();
             let interval = self.node_heartbeat_interval_secs;
             tokio::spawn(async move {
                 let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
-                let heartbeat = SelfHeartbeat::new(self_id, master.clone());
+                let mut heartbeat = SelfHeartbeat::new(agent_node, masters.clone());
                 loop {
                     ticker.tick().await;
-                    let usage = NodeHeartbeat {
-                        cpus_used: 0,
-                        memory_used_mb: 0,
-                        vms: 0,
+                    let usage = {
+                        let compute = compute_module.lock().await;
+                        match compute.list_vms("").await {
+                            Ok(vms) => aggregate_usage(&vms),
+                            Err(_) => NodeHeartbeat {
+                                cpus_used: 0,
+                                memory_used_mb: 0,
+                                vms: 0,
+                            },
+                        }
                     };
                     // Only touch the local store on the local path; the remote
                     // path must not hold the lock across the HTTP call.
-                    let mut guard = if master.is_some() {
-                        None
-                    } else {
+                    let mut guard = if masters.is_empty() {
                         Some(node_module.lock().await)
+                    } else {
+                        None
                     };
                     if let Err(e) = heartbeat.beat(guard.as_deref_mut(), usage).await {
-                        tracing::warn!("self heartbeat failed: {:#}", e);
+                        let streak = heartbeat.fail_streak();
+                        if streak > 0 && streak.is_multiple_of(3) {
+                            tracing::warn!("agent beat failing ({streak} in a row): {e}");
+                        }
                     }
                 }
             });
@@ -532,4 +672,53 @@ impl Module for MetricsModuleProxy {
         tracing::info!("Metrics module stopped"); Ok(())
     }
     fn is_running(&self) -> bool { true }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::aggregate_usage;
+    use crate::compute::{VmConfig, VmStatus};
+
+    fn vm(cpus: u32, memory_mb: u32) -> VmConfig {
+        VmConfig {
+            id: String::new(),
+            name: String::new(),
+            cpus,
+            memory_mb,
+            disk_path: String::new(),
+            kernel: String::new(),
+            kernel_args: String::new(),
+            networks: Vec::new(),
+            status: VmStatus::Stopped,
+            tenant_id: String::new(),
+            disks: Vec::new(),
+            snapshots: Vec::new(),
+            cloud_init: None,
+            uefi: false,
+            tpm: false,
+            template: false,
+            node: String::new(),
+            affinity: Vec::new(),
+            anti_affinity: Vec::new(),
+            image: String::new(),
+            ha: false,
+            migrations: 0,
+        }
+    }
+
+    #[test]
+    fn test_aggregate_usage_sums_all_vms() {
+        let usage = aggregate_usage(&[vm(2, 4096), vm(4, 8192)]);
+        assert_eq!(usage.cpus_used, 6);
+        assert_eq!(usage.memory_used_mb, 12288);
+        assert_eq!(usage.vms, 2);
+    }
+
+    #[test]
+    fn test_aggregate_usage_empty() {
+        let usage = aggregate_usage(&[]);
+        assert_eq!(usage.cpus_used, 0);
+        assert_eq!(usage.memory_used_mb, 0);
+        assert_eq!(usage.vms, 0);
+    }
 }

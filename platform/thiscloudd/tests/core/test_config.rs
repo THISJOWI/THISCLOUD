@@ -143,17 +143,43 @@ heartbeat_interval_secs = 5
     let config = thiscloudd::config::ThisCloudConfig::load(&config_path).unwrap();
 
     assert_eq!(config.node.id.as_deref(), Some("node-abc123"));
-    assert_eq!(
-        config.node.master.as_deref(),
-        Some("http://192.168.1.12:8080")
-    );
+    // Singular `master` is accepted as a 1-element `masters` list (back-compat).
+    assert_eq!(config.node.masters, vec!["http://192.168.1.12:8080"]);
     assert_eq!(config.node.heartbeat_interval_secs, 5);
+}
+
+#[test]
+fn test_node_identity_parses_masters_list() {
+    let tmp = TempDir::new().unwrap();
+    let config_path = tmp.path().join("config.toml");
+
+    let config_content = r#"
+[node]
+id = "node-abc123"
+role = "worker"
+masters = ["http://192.168.1.12:8080", "http://192.168.1.13:8080"]
+"#;
+
+    fs::write(&config_path, config_content).unwrap();
+
+    let config = thiscloudd::config::ThisCloudConfig::load(&config_path).unwrap();
+
+    assert_eq!(config.node.id.as_deref(), Some("node-abc123"));
+    assert_eq!(config.node.role.as_deref(), Some("worker"));
+    assert_eq!(
+        config.node.masters,
+        vec![
+            "http://192.168.1.12:8080".to_string(),
+            "http://192.168.1.13:8080".to_string()
+        ]
+    );
 }
 
 #[test]
 fn test_node_identity_defaults() {
     let config = thiscloudd::config::ThisCloudConfig::default();
     assert_eq!(config.node.id, None);
-    assert_eq!(config.node.master, None);
+    assert_eq!(config.node.role, None);
+    assert!(config.node.masters.is_empty());
     assert_eq!(config.node.heartbeat_interval_secs, 10);
 }

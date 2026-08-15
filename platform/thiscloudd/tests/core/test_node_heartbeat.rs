@@ -10,7 +10,7 @@ fn now() -> u64 {
         .as_secs()
 }
 
-async fn module_with_node(ttl: u64) -> (NodeModule, String) {
+async fn module_with_node(ttl: u64) -> (NodeModule, Node) {
     let mut module = NodeModule::new(Box::new(MemoryNodeStore::default()));
     let node = module
         .register(Node {
@@ -31,19 +31,19 @@ async fn module_with_node(ttl: u64) -> (NodeModule, String) {
         })
         .await
         .unwrap();
-    (module, node.id.clone())
+    (module, node)
 }
 
 #[tokio::test]
 async fn test_self_heartbeat_keeps_node_online_locally() {
-    let (mut module, id) = module_with_node(1).await;
+    let (mut module, node) = module_with_node(1).await;
 
     // TTL (1s) expires -> node offline, nothing is heartbeating it.
     tokio::time::sleep(std::time::Duration::from_millis(2100)).await;
     assert_eq!(module.list().await.unwrap()[0].state, NodeState::Offline);
 
-    // A local self-heartbeat revives it.
-    let hb = SelfHeartbeat::new(id, None);
+    // A local self-heartbeat revives it (no masters → local path).
+    let mut hb = SelfHeartbeat::new(node, Vec::new());
     hb.beat(
         Some(&mut module),
         NodeHeartbeat {
@@ -67,29 +67,27 @@ async fn test_self_heartbeat_posts_to_master() {
 
     // Server side: the master's own store + router.
     let master_module = Arc::new(Mutex::new(NodeModule::new(Box::new(MemoryNodeStore::default()))));
-    let id = {
+    {
         let mut m = master_module.lock().await;
-        let node = m
-            .register(Node {
-                id: "node-heartbeat-2".to_string(),
-                name: "worker-2".to_string(),
-                role: NodeRole::Worker,
-                address: "127.0.0.1:8081".to_string(),
-                hostname: "worker-2".to_string(),
-                cpus_total: 4,
-                cpus_used: 0,
-                memory_total_mb: 8192,
-                memory_used_mb: 0,
-                vms: 0,
-                state: NodeState::Online,
-                last_seen_secs: now(),
-                ttl_secs: 1,
-                labels: Vec::new(),
-            })
-            .await
-            .unwrap();
-        node.id.clone()
-    };
+        m.register(Node {
+            id: "node-heartbeat-2".to_string(),
+            name: "worker-2".to_string(),
+            role: NodeRole::Worker,
+            address: "127.0.0.1:8081".to_string(),
+            hostname: "worker-2".to_string(),
+            cpus_total: 4,
+            cpus_used: 0,
+            memory_total_mb: 8192,
+            memory_used_mb: 0,
+            vms: 0,
+            state: NodeState::Online,
+            last_seen_secs: now(),
+            ttl_secs: 1,
+            labels: Vec::new(),
+        })
+        .await
+        .unwrap();
+    }
 
     let router = axum::Router::new().nest(
         "/api/v1",
@@ -110,7 +108,23 @@ async fn test_self_heartbeat_posts_to_master() {
 
     // Worker daemon heartbeats the master over HTTP. The worker's own store is
     // irrelevant to the remote path.
-    let hb = SelfHeartbeat::new(id.clone(), Some(format!("http://{addr}")));
+    let node = Node {
+        id: "node-heartbeat-2".to_string(),
+        name: "worker-2".to_string(),
+        role: NodeRole::Worker,
+        address: "127.0.0.1:8081".to_string(),
+        hostname: "worker-2".to_string(),
+        cpus_total: 4,
+        cpus_used: 0,
+        memory_total_mb: 8192,
+        memory_used_mb: 0,
+        vms: 0,
+        state: NodeState::Online,
+        last_seen_secs: now(),
+        ttl_secs: 1,
+        labels: Vec::new(),
+    };
+    let mut hb = SelfHeartbeat::new(node, vec![format!("http://{addr}")]);
     hb.beat(
         None,
         NodeHeartbeat {

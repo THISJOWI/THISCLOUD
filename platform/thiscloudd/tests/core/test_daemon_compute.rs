@@ -4,7 +4,7 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn test_daemon_registers_compute_module() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     assert_eq!(daemon.module_count().await, 8);
     assert_eq!(
@@ -25,7 +25,7 @@ async fn test_daemon_registers_compute_module() {
 #[tokio::test]
 async fn test_daemon_serves_http_api() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app
@@ -44,7 +44,7 @@ async fn test_daemon_serves_http_api() {
 #[tokio::test]
 async fn test_daemon_serves_network_and_compute_routes() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app
@@ -74,7 +74,7 @@ async fn test_daemon_serves_network_and_compute_routes() {
 #[tokio::test]
 async fn test_daemon_serves_storage_pools_route() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app
@@ -92,7 +92,7 @@ async fn test_daemon_serves_storage_pools_route() {
 #[tokio::test]
 async fn test_daemon_serves_marketplace_route() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app
@@ -111,7 +111,7 @@ async fn test_daemon_serves_marketplace_route() {
 async fn test_daemon_compute_binds_configured_port() {
     let mut config = ThisCloudConfig::default();
     config.compute.http_port = 8090;
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     assert_eq!(daemon.http_bind(), "127.0.0.1");
     assert_eq!(daemon.http_port(), 8090);
@@ -120,7 +120,7 @@ async fn test_daemon_compute_binds_configured_port() {
 #[tokio::test]
 async fn test_daemon_unversioned_paths_404() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app
@@ -139,7 +139,7 @@ async fn test_daemon_unversioned_paths_404() {
 #[tokio::test]
 async fn test_daemon_serves_openapi_contract() {
     let config = ThisCloudConfig::default();
-    let daemon = thiscloudd::core::Daemon::new(config);
+    let daemon = thiscloudd::core::Daemon::new(config, None);
 
     let app = daemon.http_router();
     let response = app

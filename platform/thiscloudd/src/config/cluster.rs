@@ -30,6 +30,10 @@ pub struct NodeConfig {
 pub struct EtcdConfig {
     #[serde(default = "default_embedded")]
     pub embedded: bool,
+    /// External etcd endpoints (e.g. multi-master RAFT). When `embedded` is
+    /// false the daemon connects to the first reachable endpoint.
+    #[serde(default)]
+    pub endpoints: Vec<String>,
     #[serde(default = "default_etcd_port")]
     pub port: u16,
     #[serde(default = "default_peer_port")]
@@ -64,6 +68,7 @@ impl Default for EtcdConfig {
     fn default() -> Self {
         Self {
             embedded: default_embedded(),
+            endpoints: Vec::new(),
             port: default_etcd_port(),
             peer_port: default_peer_port(),
             data_dir: default_data_dir(),

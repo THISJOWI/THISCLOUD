@@ -57,9 +57,11 @@ endpoints = ["http://192.168.1.12:2379", "..."]
   NodeModule, ComputeModule (VmStore), NetworkModule (network/router/dhcp/
   floating-ip via existing `with_etcd_stores`), StorageModule, ImageModule,
   MarketplaceModule, QuotaModule, S3Module, AuditStore.
-- Keyspace namespaced by cluster name: `/thiscloud/<cluster>/<type>/<id>`.
-  (Etcd*Store key builders currently use `/thiscloud/<type>/<id>`; add the
-  cluster segment. Requires key prefix plumbing into the store constructors.)
+- Keyspace stays `/thiscloud/<type>/<id>` (current Etcd*Store key builders) —
+  **not** namespaced by cluster name this iteration. The `etcd` cluster backing
+  the stores is itself per-deployment (one etcd cluster per THISCLOUD
+  deployment), so no cross-deployment key collisions. Namespacing by cluster
+  name is a follow-up (needs key prefix plumbing into store constructors).
 
 ### Placement/reconciliation
 
@@ -133,7 +135,7 @@ Show total capacity, humanized `last_seen`, drain state.
   (and singular `master` compat).
 - Agent: self-registration idempotent (mock master server), master rotation
   on failure, heartbeat reports real usage.
-- etcd store: key namespace includes cluster name.
+- etcd store: keyspace stays `/thiscloud/<type>/<id>` (no cluster segment).
 - CLI: table output snapshot for `node list`.
 
 ## Error handling
