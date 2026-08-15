@@ -85,8 +85,13 @@ thiscloud update --version    # print the installed version
 ```
 
 - Every release branch (`release-v0.2.0`) triggers `.github/workflows/release.yml`,
-  which builds RPMs + binaries, attaches them to a GitHub Release tagged
-  `v0.2.0` at the branch head, and also kicks off the CI ISO build for that tag.
+  which runs tests, builds RPMs + binaries, and attaches them to a GitHub
+  Release tagged `v0.2.0` at the branch head. That tag then triggers
+  `.github/workflows/iso.yml`, which builds and publishes the ISO.
+- Fast checks (Rust/Go/web-ui/OpenAPI) run automatically on every push to `main`
+  and on PRs (`.github/workflows/ci.yml` → reusable `tests.yml`).
+- The ISO can also be built manually from the Actions tab
+  (`iso.yml` → Run workflow); version is auto-bumped from the latest release.
 - `thiscloud update` downloads `manifest.json` first, verifies the sha256 of every
   asset, backs up the current state to `/etc/thiscloud/backup-v<ver>/`, installs,
   restarts services, and records the new version in `/etc/thiscloud/version`.
