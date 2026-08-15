@@ -91,6 +91,35 @@ func TestCreateByTypeAndGet(t *testing.T) {
 	}
 }
 
+func TestCreateWithoutIDAssignsOne(t *testing.T) {
+	s := newTestServer(t)
+
+	body := `{
+		"type": "thiscloud_vm",
+		"name": "no-id-vm",
+		"vcpus": 1,
+		"memory_mb": 1024
+	}`
+	rec := doJSON(t, s, http.MethodPost, "/api/v1/resources", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: want 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	id, _ := created["id"].(string)
+	if id == "" {
+		t.Fatalf("create without id: want generated id, got empty")
+	}
+
+	rec = doJSON(t, s, http.MethodDelete, "/api/v1/resources/thiscloud_vm/"+id, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGetMissingReturns404(t *testing.T) {
 	s := newTestServer(t)
 	rec := doJSON(t, s, http.MethodGet, "/api/v1/resources/thiscloud_vm/nope", "")
@@ -137,5 +166,40 @@ func TestCreateUnknownTypeRejected(t *testing.T) {
 	rec := doJSON(t, s, http.MethodPost, "/api/v1/resources", `{"type":"nope","id":"x"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+func TestListNodesProxiesDaemon(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/nodes" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id":"master-1","name":"Host-01","role":"master","state":"online","cpus_total":16,"cpus_used":4,"memory_total_mb":32768,"memory_used_mb":8192,"vms":3},
+			{"id":"worker-1","name":"Worker-01","role":"worker","state":"online","cpus_total":8,"cpus_used":2,"memory_total_mb":16384,"memory_used_mb":4096,"vms":1}
+		]`))
+	}))
+	defer daemon.Close()
+
+	path := filepath.Join(t.TempDir(), "test.tfstate")
+	store, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	s := NewServer(store, backend.NewClient(daemon.URL))
+
+	rec := doJSON(t, s, http.MethodGet, "/api/v1/nodes", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("nodes: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var nodes []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &nodes); err != nil {
+		t.Fatalf("decode nodes: %v", err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("want 2 nodes, got %d", len(nodes))
+	}
+	if nodes[0]["role"] != "master" {
+		t.Fatalf("want master first, got %v", nodes[0]["role"])
 	}
 }

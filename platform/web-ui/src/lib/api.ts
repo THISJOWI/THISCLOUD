@@ -156,6 +156,34 @@ export type Image = {
   status?: string;
 };
 
+export type ClusterNode = {
+  id?: string;
+  name: string;
+  role?: string;
+  address?: string;
+  hostname?: string;
+  state?: string;
+  cpus_total?: number;
+  cpus_used?: number;
+  memory_total_mb?: number;
+  memory_used_mb?: number;
+  vms?: number;
+  last_seen_secs?: number;
+  ttl_secs?: number;
+  labels?: string[];
+};
+
+export async function listNodes(): Promise<ClusterNode[]> {
+  const res = await apiFetch("/api/v1/nodes");
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "unknown error");
+    console.error(`[api] GET /api/v1/nodes failed (${res.status}):`, raw);
+    throw new Error(`API error (status ${res.status})`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function listImages(): Promise<Image[]> {
   const res = await apiFetch("/api/v1/images");
   if (!res.ok) {

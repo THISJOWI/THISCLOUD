@@ -42,7 +42,24 @@ func (c *Client) Delete(ctx context.Context, collection, id string) error {
 
 // ListImages returns the daemon's image registry (GET /images).
 func (c *Client) ListImages(ctx context.Context) ([]map[string]any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/images", nil)
+	return c.list(ctx, "images")
+}
+
+// RegisterImage forwards a registration payload to the daemon (POST /images).
+func (c *Client) RegisterImage(ctx context.Context, image any) error {
+	return c.request(ctx, http.MethodPost, "images", image)
+}
+
+// ListNodes returns the cluster nodes registered with the daemon (GET /nodes).
+// Nodes are read-through: they self-register via heartbeat and are never
+// part of the orchestrator's desired state.
+func (c *Client) ListNodes(ctx context.Context) ([]map[string]any, error) {
+	return c.list(ctx, "nodes")
+}
+
+// list performs a GET on a daemon collection and decodes the JSON array.
+func (c *Client) list(ctx context.Context, collection string) ([]map[string]any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/"+collection, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +76,11 @@ func (c *Client) ListImages(ctx context.Context) ([]map[string]any, error) {
 		return nil, fmt.Errorf("daemon returned %s: %s", resp.Status, strings.TrimSpace(string(data)))
 	}
 
-	var images []map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&images); err != nil {
+	var out []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, err
 	}
-	return images, nil
-}
-
-// RegisterImage forwards a registration payload to the daemon (POST /images).
-func (c *Client) RegisterImage(ctx context.Context, image any) error {
-	return c.request(ctx, http.MethodPost, "images", image)
+	return out, nil
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body any) error {

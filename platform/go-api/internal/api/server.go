@@ -39,12 +39,26 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/resources/{type}/{id}", s.deleteResource)
 	mux.HandleFunc("GET /api/v1/images", s.listImages)
 	mux.HandleFunc("POST /api/v1/images", s.registerImage)
+	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// listNodes proxies the daemon's cluster node registry.
+func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
+	nodes, err := s.backend.ListNodes(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if nodes == nil {
+		nodes = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, nodes)
 }
 
 // listImages proxies the daemon's image registry.
@@ -131,6 +145,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request, typeFilter strin
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+
+	// Assign an id when the request didn't provide one, so the stored resource
+	// is always addressable by a stable identifier (see model.AssignID).
+	res = model.AssignID(res)
 
 	// Apply to the physical resources through the daemon client.
 	if err := s.apply(r, res); err != nil {
@@ -246,6 +264,7 @@ func (s *Server) apply(r *http.Request, res model.Resource) error {
 	collection := collectionFor(res.Type())
 	payload := map[string]any{}
 	payload["type"] = string(res.Type())
+	payload["id"] = res.ID() // keep daemon + orchestrator state on the same id
 	for k, v := range res.Attributes() {
 		payload[k] = v
 	}

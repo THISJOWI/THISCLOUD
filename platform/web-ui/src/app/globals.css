@@ -462,6 +462,33 @@ a {
   margin-left: auto;
 }
 
+.tree-node .tree-dot.off {
+  background: var(--outline);
+}
+
+.tree-node .tree-dot.busy {
+  background: var(--warn);
+}
+
+.tree-node .tree-role {
+  font-family: var(--font-mono);
+  font-size: var(--code-sm);
+  line-height: 1;
+  color: var(--primary);
+  background: var(--primary-container);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+}
+
+.tree-node.active .tree-role {
+  color: var(--on-secondary-container);
+  background: transparent;
+}
+
+.tree-node.active .tree-dot {
+  box-shadow: 0 0 0 2px rgba(180, 197, 255, 0.25);
+}
+
 .tree-node.active {
   background: var(--secondary-container);
   color: var(--on-secondary-container);
@@ -831,6 +858,14 @@ a {
   color: var(--info);
   background: var(--info-dim);
   border-color: var(--info-border);
+}
+
+.badge-master {
+  color: var(--primary);
+  background: var(--primary-container);
+  border-color: transparent;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 .badge-dot {

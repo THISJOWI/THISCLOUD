@@ -1,5 +1,10 @@
 package model
 
+import (
+	"crypto/rand"
+	"fmt"
+)
+
 // ResourceType enumerates the infrastructure resource kinds the orchestrator
 // manages. Modeled after Terraform resource definitions.
 type ResourceType string
@@ -105,5 +110,39 @@ func (r StoragePool) Attributes() map[string]any {
 		"pool_type":   r.PoolType,
 		"devices":     r.Devices,
 		"replication": r.Replication,
+	}
+}
+
+// newID returns a random UUID v4 string, matching the daemon's id scheme for
+// resources created without an explicit identifier.
+func newID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// AssignID returns res with a generated id when it has none, so every managed
+// resource carries a stable identifier in the orchestrator state. Without one,
+// deletes address an empty id and the API rejects them with 405.
+func AssignID(res Resource) Resource {
+	if res.ID() != "" {
+		return res
+	}
+	switch v := res.(type) {
+	case VM:
+		v.ResourceID = newID()
+		return v
+	case Network:
+		v.ResourceID = newID()
+		return v
+	case StoragePool:
+		v.ResourceID = newID()
+		return v
+	default:
+		return res
 	}
 }

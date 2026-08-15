@@ -4,21 +4,53 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+type ClusterNode = {
+  id: string;
+  name: string;
+  role?: string;
+  address?: string;
+  state?: string;
+  cpus_total?: number;
+  memory_total_mb?: number;
+  vms?: number;
+};
+
+const STATE_DOT: Record<string, string> = {
+  online: "ok",
+  offline: "off",
+  draining: "busy",
+};
+
 export function Sidebar() {
   const pathname = usePathname();
+  const [nodes, setNodes] = useState<ClusterNode[]>([]);
   const [vmCount, setVmCount] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/proxy/resources/thiscloud_vm", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setVmCount(Array.isArray(data) ? data.length : null))
-      .catch(() => setVmCount(null));
+    Promise.all([
+      fetch("/api/proxy/api/v1/nodes", { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : []
+      ),
+      fetch("/api/proxy/api/v1/resources/thiscloud_vm", {
+        cache: "no-store",
+      }).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([nodeData, vmData]) => {
+        setNodes(Array.isArray(nodeData) ? nodeData : []);
+        setVmCount(Array.isArray(vmData) ? vmData.length : null);
+      })
+      .catch(() => {
+        setNodes([]);
+        setVmCount(null);
+      });
   }, []);
 
   function isActive(href: string): boolean {
     if (href === "/") return pathname === "/" || pathname === "/admin";
     return pathname === href || pathname.startsWith(href + "/");
   }
+
+  const nodeList = nodes.length > 0 ? nodes : [];
 
   return (
     <aside className="sidebar">
@@ -37,14 +69,27 @@ export function Sidebar() {
             Datacenter
           </div>
           <div className="tree-group">
-            <Link
-              href="/"
-              className={`tree-node ${isActive("/") ? "active" : ""}`}
-            >
-              <span className="tree-icon">🖥</span>
-              Host-01
-              <span className="tree-dot" title="Online" />
-            </Link>
+            {nodeList.map((node) => {
+              const state = node.state ?? "online";
+              const active = nodeList.length === 1 || node.role === "master";
+              return (
+                <Link
+                  key={node.id}
+                  href="/"
+                  className={`tree-node ${isActive("/") && active ? "active" : ""}`}
+                >
+                  <span className="tree-icon">🖥</span>
+                  {node.name}
+                  {node.role === "master" && (
+                    <span className="tree-role">M</span>
+                  )}
+                  <span
+                    className={`tree-dot ${STATE_DOT[state] ?? "off"}`}
+                    title={state}
+                  />
+                </Link>
+              );
+            })}
             <Link
               href="/admin/vms"
               className={`tree-node ${isActive("/admin/vms") ? "active" : ""}`}

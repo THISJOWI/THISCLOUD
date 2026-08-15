@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listResources, Resource } from "@/lib/api";
+import { listResources, listNodes, ClusterNode, Resource } from "@/lib/api";
 import { ContextHeader, StatCard, ResourceTable } from "@/components/ui";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
@@ -47,17 +47,20 @@ export default function AdminPage() {
   const [vms, setVms] = useState<Resource[]>([]);
   const [networks, setNetworks] = useState<Resource[]>([]);
   const [pools, setPools] = useState<Resource[]>([]);
+  const [nodes, setNodes] = useState<ClusterNode[]>([]);
   const [error, setError] = useState("");
 
   async function refresh() {
-    const [v, n, p] = await Promise.all([
+    const [v, n, p, nd] = await Promise.all([
       listResources("thiscloud_vm").catch(() => []),
       listResources("thiscloud_network").catch(() => []),
       listResources("thiscloud_storage_pool").catch(() => []),
+      listNodes().catch(() => []),
     ]);
     setVms(v);
     setNetworks(n);
     setPools(p);
+    setNodes(nd);
   }
 
   useEffect(() => {
@@ -68,6 +71,9 @@ export default function AdminPage() {
 
   const running = vms.filter(
     (v) => String(v.status).toLowerCase() === "running"
+  ).length;
+  const onlineNodes = nodes.filter(
+    (nd) => String(nd.state).toLowerCase() === "online"
   ).length;
   const totalCpus = vms.reduce(
     (acc, v) => acc + (Number(v.vcpus) || 0),
@@ -106,10 +112,10 @@ export default function AdminPage() {
   return (
     <div className="content">
       <ContextHeader
-        title="Host-01 Summary"
+        title="Cluster Summary"
         meta={
           <>
-            Cluster: Online <span className="sep">•</span> {vms.length} VMs{" "}
+            {nodes.length} Nodes ({onlineNodes} online) <span className="sep">•</span> {vms.length} VMs{" "}
             <span className="sep">•</span> {networks.length} Networks{" "}
             <span className="sep">•</span> {pools.length} Storage Pools
           </>
@@ -130,6 +136,12 @@ export default function AdminPage() {
 
       <div className="grid">
         <StatCard
+          label="Cluster Nodes"
+          value={nodes.length}
+          sub={`${onlineNodes} online`}
+          icon="🖥"
+        />
+        <StatCard
           label="Virtual Machines"
           value={vms.length}
           sub={`${running} running`}
@@ -147,15 +159,47 @@ export default function AdminPage() {
           sub={`${pools.reduce((acc, p) => acc + (Number(p.replication) || 0), 0)} replication`}
           icon="⬢"
         />
-        <StatCard
-          label="Running"
-          value={running}
-          sub={`${Math.round((running / Math.max(1, vms.length)) * 100)}% of VMs`}
-          icon="▶"
-          progress={(running / Math.max(1, vms.length)) * 100}
-          progressColor="var(--ok)"
-        />
       </div>
+
+      {nodes.length > 0 && (
+        <div className="grid">
+          {nodes.map((node) => (
+            <div key={node.id ?? node.name} className="stat-card">
+              <span className="stat-label">
+                {node.name}
+                {node.role === "master" && (
+                  <span className="badge badge-master">MASTER</span>
+                )}
+              </span>
+              <div className="stat-value">
+                {Number(node.cpus_total) || 0}
+                <span className="text-muted" style={{ fontSize: "var(--body-sm)", fontWeight: 400 }}>
+                  {" "}CPUs
+                </span>
+              </div>
+              <div className="stat-trend">
+                {node.state ?? "online"} •{" "}
+                {Number(node.memory_used_mb || 0) / 1024 >= 1
+                  ? `${Math.round(Number(node.memory_used_mb || 0) / 1024)} / ${Math.round(Number(node.memory_total_mb || 0) / 1024)} GB`
+                  : `${Number(node.memory_used_mb || 0)} / ${Number(node.memory_total_mb || 0)} MB`}{" "}
+                • {Number(node.vms) || 0} VMs
+              </div>
+              <div className="progress">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${Math.min(100, Math.round(((Number(node.cpus_used) || 0) / Math.max(1, Number(node.cpus_total) || 1)) * 100))}%`,
+                    background:
+                      String(node.state).toLowerCase() === "online"
+                        ? "var(--ok)"
+                        : "var(--warn)",
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid">
         <TelemetryCard label="CPU cores allocated" value={totalCpus} max={16} unit="" />
