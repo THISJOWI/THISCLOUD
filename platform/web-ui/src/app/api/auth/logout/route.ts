@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const base = `${url.protocol}//${url.host}`;
   const response = NextResponse.redirect(new URL("/login", base));
 
   response.cookies.set("session", "", { maxAge: 0, path: "/" });

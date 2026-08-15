@@ -27,16 +27,20 @@ async function authenticateSystemUser(
       { timeout: 5000 }
     );
 
-    // Check if user is in the wheel group (admin)
+    // Check if user is in the wheel group (admin) or is root
     let isAdmin = false;
-    try {
-      const { stdout } = await execAsync(
-        `id -nG ${JSON.stringify(username)} 2>/dev/null`,
-        { timeout: 3000 }
-      );
-      isAdmin = stdout.trim().split(/\s+/).includes("wheel");
-    } catch {
-      // Not in wheel or user doesn't exist — treat as regular user
+    if (username === "root") {
+      isAdmin = true;
+    } else {
+      try {
+        const { stdout } = await execAsync(
+          `id -nG ${JSON.stringify(username)} 2>/dev/null`,
+          { timeout: 3000 }
+        );
+        isAdmin = stdout.trim().split(/\s+/).includes("wheel");
+      } catch {
+        // Not in wheel or user doesn't exist — treat as regular user
+      }
     }
 
     return { ok: true, isAdmin };
