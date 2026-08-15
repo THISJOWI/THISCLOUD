@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listResources, createResource, deleteResource, Resource } from "@/lib/api";
-import { ResourceTable } from "@/components/ui";
-import { Header } from "@/components/header";
+import { ResourceTable, ContextHeader } from "@/components/ui";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function NetworksPage() {
@@ -62,43 +61,31 @@ export default function NetworksPage() {
 
   if (authorized === null) {
     return (
-      <>
-        <Header title="Networks" />
-        <main className="content">
-          <div className="loading-page">
-            <div className="spinner" />
-            Checking authorization...
-          </div>
-        </main>
-      </>
+      <div className="content">
+        <div className="loading-page">
+          <div className="spinner" />
+          Checking authorization...
+        </div>
+      </div>
     );
   }
 
   if (authorized === false) {
     return (
-      <>
-        <Header title="Networks" />
-        <main className="content">
-          <div className="page-header">
-            <h1 className="page-title">Networks</h1>
-          </div>
-          <p className="error">{authError || "Access denied"}</p>
-          <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
-        </main>
-      </>
+      <div className="content">
+        <ContextHeader title="Networks" />
+        <p className="error">{authError || "Access denied"}</p>
+        <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
+      </div>
     );
   }
 
   return (
-    <>
-      <Header title="Networks" />
-      <main className="content">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Networks</h1>
-            <p className="page-subtitle">Virtual networks and address ranges</p>
-          </div>
-        </div>
+    <div className="content">
+      <ContextHeader
+        title="Networks"
+        meta="Virtual networks and address ranges"
+      />
 
         {error && <p className="error">{error}</p>}
 
@@ -141,7 +128,6 @@ export default function NetworksPage() {
             <span className="text-muted">Deleting {deleting}...</span>
           </div>
         )}
-      </main>
-    </>
-  );
+      </div>
+    );
 }

@@ -97,12 +97,12 @@
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: var(--fg);
+  color: var(--on-surface);
 }
 
 .brandSub {
   font-size: 12px;
-  color: var(--fg-muted);
+  color: var(--outline);
   margin-top: 6px;
   letter-spacing: 0.05em;
 }
@@ -123,7 +123,7 @@
 .field label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--fg-secondary);
+  color: var(--on-surface-variant);
   letter-spacing: 0.02em;
 }
 
@@ -134,23 +134,23 @@
 .inputWrap input {
   width: 100%;
   padding: 11px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--outline-variant);
   border-radius: 8px;
   background: rgba(17, 19, 25, 0.6);
-  color: var(--fg);
+  color: var(--on-surface);
   font-size: 14px;
   font-family: inherit;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .inputWrap input::placeholder {
-  color: var(--fg-muted);
+  color: var(--outline);
   font-size: 13px;
 }
 
 .inputWrap input:focus {
   outline: none;
-  border-color: var(--border-focus);
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -162,7 +162,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: var(--fg-muted);
+  color: var(--outline);
   cursor: pointer;
   padding: 4px 6px;
   font-size: 13px;
@@ -172,7 +172,7 @@
 }
 
 .pwToggle:hover {
-  color: var(--fg-secondary);
+  color: var(--on-surface-variant);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -237,7 +237,7 @@
 /* ---- Error ---- */
 .error {
   color: var(--error);
-  background: var(--error-dim);
+  background: var(--error-container);
   border: 1px solid rgba(239, 68, 68, 0.18);
   border-radius: 8px;
   padding: 10px 14px;
@@ -259,7 +259,7 @@
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   font-size: 11px;
-  color: var(--fg-muted);
+  color: var(--outline);
   line-height: 1.6;
 }
 

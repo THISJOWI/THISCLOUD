@@ -1,6 +1,28 @@
 "use client";
 
+import { ReactNode } from "react";
 import { Resource } from "@/lib/api";
+
+/* ---- ContextHeader (mockup "Host-01 Summary" bar) ---- */
+export function ContextHeader({
+  title,
+  meta,
+  actions,
+}: {
+  title: string;
+  meta?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="context-header">
+      <div>
+        <h1>{title}</h1>
+        {meta && <div className="context-meta">{meta}</div>}
+      </div>
+      {actions && <div className="context-actions">{actions}</div>}
+    </div>
+  );
+}
 
 /* ---- StatusBadge ---- */
 export function StatusBadge({ status }: { status: string }) {
@@ -18,42 +40,64 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-/* ---- StatCard ---- */
+/* ---- StatCard (mockup telemetry card: label-xs + display value + h-1 bar) ---- */
 export function StatCard({
   label,
   value,
+  sub,
+  progress,
+  progressColor,
   icon,
-  accent,
 }: {
   label: string;
   value: string | number;
+  sub?: string;
+  progress?: number;
+  progressColor?: string;
   icon?: string;
-  accent?: string;
 }) {
+  const pct = Math.max(0, Math.min(100, Number(progress) || 0));
   return (
     <div className="stat-card">
-      <div className="stat-card-header">
-        <span className="stat-label">{label}</span>
-        {icon && (
+      {icon && (
+        <div
+          className="stat-icon"
+          style={{
+            background: "var(--surface-container)",
+            border: "1px solid var(--outline-variant)",
+            color: "var(--primary)",
+            width: 28,
+            height: 28,
+            borderRadius: "var(--radius-lg)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 13,
+            marginBottom: 8,
+          }}
+        >
+          {icon}
+        </div>
+      )}
+      <span className="stat-label">{label}</span>
+      <div className="stat-value">{value}</div>
+      {sub && <div className="stat-trend">{sub}</div>}
+      {typeof progress === "number" && (
+        <div className="progress">
           <div
-            className="stat-icon"
+            className="progress-fill"
             style={{
-              background: `color-mix(in srgb, ${accent ?? "var(--accent)"} 15%, transparent)`,
-              color: accent ?? "var(--accent)",
+              width: `${pct}%`,
+              background: progressColor ?? "var(--primary)",
             }}
-          >
-            {icon}
-          </div>
-        )}
-      </div>
-      <div className="stat-value" style={{ color: accent ?? "var(--fg)" }}>
-        {value}
-      </div>
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---- ResourceTable ---- */
+/* ---- ResourceTable (mockup data-grid) ---- */
 export function ResourceTable({
   title,
   headers,
@@ -96,44 +140,46 @@ export function ResourceTable({
           </span>
         </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            {headers.map((h) => (
-              <th key={h}>{h}</th>
-            ))}
-            {hasActions && <th style={{ width: 60, textAlign: "center" }}>Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
+      <div className="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td colSpan={headers.length + (hasActions ? 1 : 0)} className="empty">
-                {emptyText ?? "No resources"}
-              </td>
-            </tr>
-          )}
-          {rows.map((r) => (
-            <tr key={r.id}>
               {headers.map((h) => (
-                <td key={h}>{formatCell(h, r)}</td>
+                <th key={h}>{h}</th>
               ))}
-              {hasActions && (
-                <td style={{ textAlign: "center" }}>
-                  <button
-                    onClick={() => onDelete!(String(r.type), String(r.id))}
-                    className="btn btn-danger btn-ghost"
-                    title={`Delete ${r.type}:${r.id}`}
-                    style={{ fontSize: 11, padding: "2px 6px" }}
-                  >
-                    Delete
-                  </button>
-                </td>
-              )}
+              {hasActions && <th style={{ width: 60, textAlign: "center" }}>Actions</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={headers.length + (hasActions ? 1 : 0)} className="empty">
+                  {emptyText ?? "No resources"}
+                </td>
+              </tr>
+            )}
+            {rows.map((r) => (
+              <tr key={r.id}>
+                {headers.map((h) => (
+                  <td key={h}>{formatCell(h, r)}</td>
+                ))}
+                {hasActions && (
+                  <td style={{ textAlign: "center" }}>
+                    <button
+                      onClick={() => onDelete!(String(r.type), String(r.id))}
+                      className="btn btn-danger btn-ghost"
+                      title={`Delete ${r.type}:${r.id}`}
+                      style={{ fontSize: 11, padding: "2px 6px" }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

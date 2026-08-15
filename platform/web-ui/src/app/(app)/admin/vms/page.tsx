@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listResources, deleteResource, Resource } from "@/lib/api";
-import { ResourceTable } from "@/components/ui";
+import { ContextHeader, ResourceTable } from "@/components/ui";
 import { CreateVmModal } from "@/components/create-vm-modal";
-import { Header } from "@/components/header";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function VmsPage() {
@@ -52,48 +51,36 @@ export default function VmsPage() {
 
   if (authorized === null) {
     return (
-      <>
-        <Header title="Virtual Machines" />
-        <main className="content">
-          <div className="loading-page">
-            <div className="spinner" />
-            Checking authorization...
-          </div>
-        </main>
-      </>
+      <div className="content">
+        <div className="loading-page">
+          <div className="spinner" />
+          Checking authorization...
+        </div>
+      </div>
     );
   }
 
   if (authorized === false) {
     return (
-      <>
-        <Header title="Virtual Machines" />
-        <main className="content">
-          <div className="page-header">
-            <h1 className="page-title">Virtual Machines</h1>
-          </div>
-          <p className="error">{authError || "Access denied"}</p>
-          <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
-        </main>
-      </>
+      <div className="content">
+        <ContextHeader title="Virtual Machines" />
+        <p className="error">{authError || "Access denied"}</p>
+        <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
+      </div>
     );
   }
 
   return (
-    <>
-      <Header title="Virtual Machines" />
-      <main className="content">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Virtual Machines</h1>
-            <p className="page-subtitle">Create and manage virtual machines</p>
-          </div>
-          <div className="page-actions">
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              + Create VM
-            </button>
-          </div>
-        </div>
+    <div className="content">
+      <ContextHeader
+        title="Virtual Machines"
+        meta={`${vms.length} VMs • ${vms.filter((v) => String(v.status).toLowerCase() === "running").length} running`}
+        actions={
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            + Create VM
+          </button>
+        }
+      />
 
         {error && <p className="error">{error}</p>}
 
@@ -118,7 +105,6 @@ export default function VmsPage() {
             onCreated={() => refresh()}
           />
         )}
-      </main>
-    </>
-  );
+      </div>
+    );
 }

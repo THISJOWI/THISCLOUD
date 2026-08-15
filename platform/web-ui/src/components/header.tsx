@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function Header({ title }: { title?: string }) {
+export function Header() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [user, setUser] = useState<{ id: string; role: string } | null>(null);
 
@@ -34,39 +34,42 @@ export function Header({ title }: { title?: string }) {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <div className="topbar-breadcrumb">
-          <span>THISCLOUD</span>
-          {title && (
-            <>
-              <span className="sep">›</span>
-              <span className="current">{title}</span>
-            </>
-          )}
+        <div className="topbar-brand">
+          <div className="brand-mark">T</div>
+          <span className="brand-name">THISCLOUD</span>
+          <span className="brand-divider" />
         </div>
+        <button className="cluster-pill" title="Cluster status">
+          <span className="pill-dot" />
+          <span className="pill-text">
+            {online === null ? "Cluster: Checking" : online ? "Cluster: Online" : "Cluster: Offline"}
+          </span>
+        </button>
       </div>
       <div className="topbar-right">
-        <div className="topbar-status">
-          <span
-            className={`status-dot ${
-              online === null ? "" : online ? "online" : "offline"
-            }`}
-          />
-          {online === null ? "Checking..." : online ? "Connected" : "Offline"}
-        </div>
-        <div className="topbar-user">
-          <span className="avatar">
-            {user?.id?.[0]?.toUpperCase() ?? "U"}
-          </span>
-          {user?.id ?? "user"}
-          {user?.role && (
-            <span className="topbar-role">{user.role}</span>
-          )}
+        <button className="topbar-icon-btn" title="Notifications">
+          <span role="img" aria-label="bell">◔</span>
+        </button>
+        <button className="topbar-icon-btn" title="Settings">
+          <span role="img" aria-label="settings">⚙</span>
+        </button>
+        <button className="topbar-icon-btn" title="Help">
+          <span role="img" aria-label="help">?</span>
+        </button>
+        <div className="topbar-user-sep">
+          <div className="topbar-user">
+            <span className="avatar">{user?.id?.[0]?.toUpperCase() ?? "U"}</span>
+            <span className="user-meta">
+              <span className="user-name">{user?.id ?? "user"}</span>
+              {user?.role && <span className="topbar-role">{user.role}</span>}
+            </span>
+          </div>
           <button
             className="topbar-logout"
             title="Sign out"
             onClick={() => (window.location.href = "/api/auth/logout")}
           >
-            ⏻
+            Logout
           </button>
         </div>
       </div>

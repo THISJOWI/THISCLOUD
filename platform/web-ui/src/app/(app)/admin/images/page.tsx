@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Image, listImages, registerImage } from "@/lib/api";
-import { Header } from "@/components/header";
+import { ContextHeader } from "@/components/ui";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function ImagesPage() {
@@ -72,50 +72,36 @@ export default function ImagesPage() {
 
   if (authorized === null) {
     return (
-      <>
-        <Header title="Images" />
-        <main className="content">
-          <div className="loading-page">
-            <div className="spinner" />
-            Checking authorization...
-          </div>
-        </main>
-      </>
+      <div className="content">
+        <div className="loading-page">
+          <div className="spinner" />
+          Checking authorization...
+        </div>
+      </div>
     );
   }
 
   if (authorized === false) {
     return (
-      <>
-        <Header title="Images" />
-        <main className="content">
-          <div className="page-header">
-            <h1 className="page-title">Images</h1>
-          </div>
-          <p className="error">{authError || "Access denied"}</p>
-          <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
-        </main>
-      </>
+      <div className="content">
+        <ContextHeader title="Images" />
+        <p className="error">{authError || "Access denied"}</p>
+        <Link href="/" className="btn btn-secondary">Return to Dashboard</Link>
+      </div>
     );
   }
 
   return (
-    <>
-      <Header title="Images" />
-      <main className="content">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Images</h1>
-            <p className="page-subtitle">
-              Image registry — bootable disk images and ISOs used by VMs
-            </p>
-          </div>
-          <div className="page-actions">
-            <button className="btn btn-primary" onClick={() => setShowImport(true)}>
-              + Register Image
-            </button>
-          </div>
-        </div>
+    <div className="content">
+      <ContextHeader
+        title="Images"
+        meta="Image registry — bootable disk images and ISOs used by VMs"
+        actions={
+          <button className="btn btn-primary" onClick={() => setShowImport(true)}>
+            + Register Image
+          </button>
+        }
+      />
 
         {error && <p className="error">{error}</p>}
 
@@ -249,7 +235,6 @@ export default function ImagesPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </>
-  );
+      </div>
+    );
 }

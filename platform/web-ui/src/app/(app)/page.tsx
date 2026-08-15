@@ -1,6 +1,6 @@
+import Link from "next/link";
 import { listResources, health } from "@/lib/api";
-import { StatCard, ResourceTable } from "@/components/ui";
-import { Header } from "@/components/header";
+import { ContextHeader, StatCard, ResourceTable } from "@/components/ui";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -11,20 +11,12 @@ export default async function PortalPage() {
 
   if (!session) {
     return (
-      <>
-        <Header title="Portal" />
-        <main className="content">
-          <div className="page-header">
-            <div>
-              <h1 className="page-title">Cloud Portal</h1>
-              <p className="page-subtitle">Sign in to access your resources</p>
-            </div>
-          </div>
-          <p className="text-secondary">
-            Please <a href="/login">sign in</a> to continue.
-          </p>
-        </main>
-      </>
+      <div className="content">
+        <ContextHeader title="Cloud Portal" meta="Sign in to access your resources" />
+        <p className="text-secondary">
+          Please <a href="/login">sign in</a> to continue.
+        </p>
+      </div>
     );
   }
 
@@ -35,50 +27,60 @@ export default async function PortalPage() {
     listResources("thiscloud_storage_pool").catch(() => []),
   ]);
 
+  const running = vms.filter(
+    (v) => String(v.status).toLowerCase() === "running"
+  ).length;
+
   return (
-    <>
-      <Header title="Portal" />
-      <main className="content">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Cluster overview and resource summary</p>
-          </div>
-        </div>
+    <div className="content">
+      <ContextHeader
+        title="Host-01 Summary"
+        meta={
+          <>
+            Cluster: {online ? "Online" : "Offline"}{" "}
+            <span className="sep">•</span> {vms.length} VMs{" "}
+            <span className="sep">•</span> {networks.length} Networks{" "}
+            <span className="sep">•</span> {pools.length} Storage Pools
+          </>
+        }
+        actions={
+          <Link href="/admin/vms" className="btn btn-primary">
+            + Create VM
+          </Link>
+        }
+      />
 
-        <div className="grid">
-          <StatCard
-            label="Virtual Machines"
-            value={vms.length}
-            icon="▣"
-            accent="var(--accent)"
-          />
-          <StatCard
-            label="Networks"
-            value={networks.length}
-            icon="⬡"
-            accent="var(--ok)"
-          />
-          <StatCard
-            label="Storage Pools"
-            value={pools.length}
-            icon="⬢"
-            accent="var(--warn)"
-          />
-          <StatCard
-            label="API Status"
-            value={online ? "Online" : "Offline"}
-            icon="◉"
-            accent={online ? "var(--ok)" : "var(--error)"}
-          />
-        </div>
-
-        <ResourceTable
-          title="Virtual Machines"
-          headers={["id", "name", "vcpus", "memory_mb", "image", "status"]}
-          rows={vms}
+      <div className="grid">
+        <StatCard
+          label="Virtual Machines"
+          value={vms.length}
+          sub={`${running} running`}
+          icon="▣"
         />
-      </main>
-    </>
+        <StatCard
+          label="Networks"
+          value={networks.length}
+          icon="⌁"
+        />
+        <StatCard
+          label="Storage Pools"
+          value={pools.length}
+          icon="⬢"
+        />
+        <StatCard
+          label="API Status"
+          value={online ? "Online" : "Offline"}
+          icon="◉"
+          progress={online ? 100 : 0}
+          progressColor={online ? "var(--ok)" : "var(--error)"}
+        />
+      </div>
+
+      <ResourceTable
+        title="Virtual Machines"
+        headers={["id", "name", "vcpus", "memory_mb", "image", "status"]}
+        rows={vms}
+      />
+    </div>
   );
 }

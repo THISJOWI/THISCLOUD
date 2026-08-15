@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { Header } from "@/components/header";
 import { listResources, Resource } from "@/lib/api";
-import { StatusBadge } from "@/components/ui";
+import { ContextHeader, StatusBadge } from "@/components/ui";
 
 const WS_PROTO = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
 const IS_DEV = process.env.NODE_ENV !== "production";
@@ -94,18 +93,16 @@ export default function ConsolePage() {
   }, [selected]);
 
   return (
-    <>
-      <Header title="Console" />
-      <main className="content">
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">Cluster Console</h1>
-            <p className="page-subtitle">Interactive terminal session for a VM</p>
-          </div>
-          {selected && (
+    <div className="content">
+      <ContextHeader
+        title="Cluster Console"
+        meta="Interactive terminal session for a VM"
+        actions={
+          selected && (
             <StatusBadge status={connected ? "connected" : "disconnected"} />
-          )}
-        </div>
+          )
+        }
+      />
 
         <div className="glass-panel" style={{ padding: 16, marginBottom: 16 }}>
           <label className="stat-label" style={{ display: "block", marginBottom: 8 }}>
@@ -138,7 +135,6 @@ export default function ConsolePage() {
             <p className="text-secondary">Select a virtual machine above to open its console.</p>
           </div>
         )}
-      </main>
-    </>
-  );
+      </div>
+    );
 }
