@@ -128,7 +128,7 @@ export function Sidebar() {
           <span className="tree-icon">&gt;_</span>
           Console / Logs
         </Link>
-        <div className="sidebar-footer-meta">THISCLOUD v0.2.4</div>
+        <div className="sidebar-footer-meta">THISCLOUD v0.3.0</div>
       </div>
     </aside>
   );
