@@ -98,7 +98,9 @@ export async function listResources(type?: string): Promise<Resource[]> {
     console.error(`[api] GET ${path} failed (${res.status}):`, raw);
     throw new Error(`API error (status ${res.status})`);
   }
-  return res.json();
+  const data = await res.json();
+  // Guard against a backend that serializes an empty result set as null.
+  return Array.isArray(data) ? data : [];
 }
 
 export async function createResource(

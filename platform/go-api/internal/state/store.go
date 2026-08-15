@@ -152,7 +152,9 @@ func (s *Store) Get(id string) (model.Resource, error) {
 func (s *Store) List(t model.ResourceType) ([]model.Resource, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []model.Resource
+	// Initialize as an empty slice (not nil) so JSON serializes as `[]`
+	// rather than `null` when there are no matching resources.
+	out := make([]model.Resource, 0)
 	for _, r := range s.file.Resources {
 		if t == "" || r.Type() == t {
 			out = append(out, r)
