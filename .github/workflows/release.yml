@@ -152,7 +152,10 @@ jobs:
           # Web UI standalone tarball (server.js at tarball root, matching
           # /usr/share/thiscloud/web-ui layout on the target).
           mkdir -p dist/webui
-          cp -a web-ui/.next/standalone/* dist/webui/
+          # NB: copy with `/.` not `/*` — the glob would skip dotfiles
+          # (.next/ with BUILD_ID + server build), producing a tarball that
+          # fails to boot with "Could not find a production build".
+          cp -a web-ui/.next/standalone/. dist/webui/
           mkdir -p dist/webui/.next
           cp -a web-ui/.next/static dist/webui/.next/static
           [ -d web-ui/public ] && cp -a web-ui/public dist/webui/public
