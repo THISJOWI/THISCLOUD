@@ -150,6 +150,13 @@ if [ -f "$SOURCE_DIR/thiscloud-open-web-port" ]; then
   echo "    thiscloud-open-web-port copied"
 fi
 
+# Copy session-secret generator script
+if [ -f "$SOURCE_DIR/thiscloud-session-secret" ]; then
+  cp -f "$SOURCE_DIR/thiscloud-session-secret" /mnt/sysimage/tmp/
+  chmod 755 /mnt/sysimage/tmp/thiscloud-session-secret
+  echo "    thiscloud-session-secret copied"
+fi
+
 for BIN in cloud-hypervisor thiscloud-api thiscloudd thiscloud-cli; do
   if [ -f "$SOURCE_DIR/$BIN" ]; then
     # Stage to /tmp (used by chroot fallback)
@@ -418,6 +425,14 @@ else
   echo "WARNING: thiscloud-open-web-port script not found in staging"
 fi
 
+# Install the session-secret generator (creates signing key for web UI sessions)
+if [ -f /tmp/thiscloud-session-secret ]; then
+  install -m 0755 /tmp/thiscloud-session-secret /usr/local/bin/thiscloud-session-secret
+  echo "    thiscloud-session-secret installed"
+else
+  echo "WARNING: thiscloud-session-secret script not found in staging"
+fi
+
 # ── Hostname ────────────────────────────────────────────────────────
 echo "==> Setting hostname"
 hostnamectl set-hostname thiscloud
@@ -511,7 +526,7 @@ done
 # ── Clean up staging files ──────────────────────────────────────────
 echo "==> Cleaning up staging files"
 rm -rf /tmp/thiscloud-repo /tmp/thiscloud-web-ui /tmp/thiscloud-systemd
-rm -f /tmp/cloud-hypervisor /tmp/thiscloud-api /tmp/thiscloud-open-ports /tmp/thiscloud-open-web-port
+rm -f /tmp/cloud-hypervisor /tmp/thiscloud-api /tmp/thiscloud-open-ports /tmp/thiscloud-open-web-port /tmp/thiscloud-session-secret
 
 # ── Enable services ─────────────────────────────────────────────────
 echo "==> Enabling services"

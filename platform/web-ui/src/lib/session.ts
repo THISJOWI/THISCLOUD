@@ -44,15 +44,29 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+let _runtimeSecret: string | null = null;
+
 function sessionSecret(): string {
   const secret = process.env.SESSION_SECRET ?? process.env.AUTH_SECRET;
   if (secret) {
     return secret;
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("SESSION_SECRET or AUTH_SECRET must be set");
+  // In production, generate a random secret on first call.
+  // This is less secure than a persisted secret (sessions won't survive
+  // restarts) but prevents the hard crash that previously occurred when
+  // no secret was configured.
+  if (_runtimeSecret) {
+    return _runtimeSecret;
   }
-  return "thiscloud-dev-session-secret";
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  _runtimeSecret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  console.warn(
+    "[session] No SESSION_SECRET configured — using random runtime secret. " +
+    "Sessions will not persist across restarts. Set SESSION_SECRET in " +
+    "/etc/thiscloud/web-ui.env for production."
+  );
+  return _runtimeSecret;
 }
 
 async function signingKey(): Promise<CryptoKey> {

@@ -176,6 +176,10 @@ chmod 755 "$REPO/thiscloud-open-ports"
 cp -f iso/scripts/open-web-port.sh "$REPO/thiscloud-open-web-port"
 chmod 755 "$REPO/thiscloud-open-web-port"
 
+# Copy the session-secret generator script
+cp -f iso/scripts/session-secret.sh "$REPO/thiscloud-session-secret"
+chmod 755 "$REPO/thiscloud-session-secret"
+
 echo "==> [6/9] Fetch external dependency RPMs"
 bash iso/scripts/fetch-deps.sh
 

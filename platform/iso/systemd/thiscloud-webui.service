@@ -10,7 +10,8 @@ WorkingDirectory=/usr/share/thiscloud/web-ui
 ExecStart=/usr/bin/node /usr/share/thiscloud/web-ui/server.js
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=-/etc/thiscloud/web-ui.env
+ExecStartPre=/usr/local/bin/thiscloud-session-secret
+EnvironmentFile=/etc/thiscloud/web-ui.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=HOSTNAME=0.0.0.0
