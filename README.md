@@ -18,7 +18,7 @@
     <img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License" />
   </a>
   <a href="https://github.com/THISJOWI/THISCLOUD/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/THISJOWI/THISCLOUD/checks.yml?style=flat-square&label=checks" alt="Checks" />
+    <img src="https://img.shields.io/github/actions/workflow/status/THISJOWI/THISCLOUD/release.yml?style=flat-square&label=release" alt="Release pipeline" />
   </a>
   <a href="https://github.com/THISJOWI/THISCLOUD/discussions">
     <img src="https://img.shields.io/github/discussions/THISJOWI/THISCLOUD?style=flat-square" alt="Discussions" />

@@ -88,10 +88,8 @@ thiscloud update --version    # print the installed version
   which runs tests, builds RPMs + binaries, and attaches them to a GitHub
   Release tagged `v0.2.0` at the branch head. That tag then triggers
   `.github/workflows/iso.yml`, which builds and publishes the ISO.
-- Fast checks (Rust/Go/web-ui) run automatically on every push to `main`
-  and on PRs (`.github/workflows/checks.yml` → reusable `tests.yml`).
-- OpenAPI lint (`.spectral.yaml`) runs in `release.yml` and `iso.yml`, not on
-  every push/PR.
+- Tests (Rust/Go/web-ui) and OpenAPI lint (`.spectral.yaml`) run inside both
+  `release.yml` and `iso.yml` — there is no separate per-push/PR check workflow.
 - The ISO can also be built manually from the Actions tab
   (`iso.yml` → Run workflow); version is auto-bumped from the latest release.
 - `thiscloud update` downloads `manifest.json` first, verifies the sha256 of every

@@ -26,8 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install musl cross-compiler + protoc
-        run: sudo apt-get update && sudo apt-get install -y musl-tools protobuf-compiler
+        with:
+          components: clippy
+      - name: Install musl cross-compiler + protoc + etcd
+        run: sudo apt-get update && sudo apt-get install -y musl-tools protobuf-compiler etcd-server
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: platform
@@ -39,6 +41,20 @@ jobs:
           node-version: 20
       - name: Lint OpenAPI spec
         run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml -r .spectral.yaml -F error
+      - name: Run Rust tests + clippy
+        run: |
+          cargo test --workspace
+          cargo clippy --all-targets -- -D warnings
+        working-directory: platform
+      - name: Run Go tests
+        run: go test ./...
+        working-directory: platform/go-api
+      - name: Run web-ui tests + lint
+        run: |
+          npm ci
+          npm test
+          npm run lint
+        working-directory: platform/web-ui
       - name: Stage compile artifacts (build-only mode)
         run: |
           cd platform
