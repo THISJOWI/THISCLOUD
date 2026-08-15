@@ -27,18 +27,27 @@ async fn main() -> Result<()> {
     let etcd_config = config.cluster.etcd.clone();
     let (_etcd_manager, etcd): (Option<EtcdManager>, Option<EtcdClient>) = if etcd_config.embedded {
         let mut manager = EtcdManager::new(etcd_config.clone());
-        manager.start().await?;
-        match manager.connect().await {
-            Ok(client) => {
-                tracing::info!("Connected to embedded etcd");
-                (Some(manager), Some(client))
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "Embedded etcd unavailable ({:#}) — falling back to in-memory stores",
-                    e
-                );
-                (Some(manager), None)
+        // A missing/unusable etcd binary must not crash the daemon: fall back
+        // to in-memory stores (dev resilience / degraded single node).
+        if let Err(e) = manager.start().await {
+            tracing::warn!(
+                "Embedded etcd failed to start ({:#}) — using in-memory stores",
+                e
+            );
+            (Some(manager), None)
+        } else {
+            match manager.connect().await {
+                Ok(client) => {
+                    tracing::info!("Connected to embedded etcd");
+                    (Some(manager), Some(client))
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Embedded etcd unavailable ({:#}) — falling back to in-memory stores",
+                        e
+                    );
+                    (Some(manager), None)
+                }
             }
         }
     } else if !etcd_config.endpoints.is_empty() {

@@ -39,6 +39,26 @@ else
   echo "==> cloud-hypervisor already present, skipping download"
 fi
 
+# --- etcd: GitHub static binary (deterministic; EPEL RPM may be unavailable) ---
+ETCD_VERSION="${ETCD_VERSION:-v3.5.16}"
+ETCD_TGZ="etcd-${ETCD_VERSION}-linux-amd64.tar.gz"
+ETCD_URL="https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/${ETCD_TGZ}"
+if [ ! -f "$REPO/etcd" ]; then
+  echo "==> downloading etcd ${ETCD_VERSION}"
+  TMP_DIR="$(mktemp -d)"
+  if curl -fL -o "$TMP_DIR/$ETCD_TGZ" "$ETCD_URL"; then
+    tar -xzf "$TMP_DIR/$ETCD_TGZ" -C "$TMP_DIR" "etcd-${ETCD_VERSION}-linux-amd64/etcd"
+    cp -f "$TMP_DIR/etcd-${ETCD_VERSION}-linux-amd64/etcd" "$REPO/etcd"
+    chmod 755 "$REPO/etcd"
+    echo "    etcd ${ETCD_VERSION} staged -> $REPO/etcd"
+  else
+    echo "warning: could not download etcd from $ETCD_URL — daemon will fall back to in-memory stores"
+  fi
+  rm -rf "$TMP_DIR"
+else
+  echo "==> etcd already present, skipping download"
+fi
+
 # --- Enable repos that carry the external deps ---
 # EPEL + CRB for extra packages, NFV SIG for OVN/OVS, ELRepo for DRBD.
 dnf install -y epel-release 2>/dev/null || true

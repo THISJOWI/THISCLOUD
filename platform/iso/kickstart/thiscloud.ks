@@ -157,7 +157,7 @@ if [ -f "$SOURCE_DIR/thiscloud-session-secret" ]; then
   echo "    thiscloud-session-secret copied"
 fi
 
-for BIN in cloud-hypervisor thiscloud-api thiscloudd thiscloud-cli; do
+for BIN in cloud-hypervisor thiscloud-api thiscloudd thiscloud-cli etcd; do
   if [ -f "$SOURCE_DIR/$BIN" ]; then
     # Stage to /tmp (used by chroot fallback)
     cp -f "$SOURCE_DIR/$BIN" /mnt/sysimage/tmp/
@@ -168,6 +168,7 @@ for BIN in cloud-hypervisor thiscloud-api thiscloudd thiscloud-cli; do
       thiscloud-api)    DEST="/mnt/sysimage/usr/local/bin/$BIN" ;;
       thiscloudd)       DEST="/mnt/sysimage/usr/sbin/$BIN" ;;
       thiscloud-cli)    DEST="/mnt/sysimage/usr/bin/thiscloud" ;;
+      etcd)             DEST="/mnt/sysimage/usr/bin/etcd" ;;
     esac
     mkdir -p "$(dirname "$DEST")"
     cp -f "$SOURCE_DIR/$BIN" "$DEST"
@@ -279,7 +280,9 @@ fi
 
 # ── Install THISCLOUD packages from the local repo ─────────────────
 echo "==> Installing THISCLOUD packages"
-dnf install -y --enablerepo=thiscloud thiscloud thiscloudd etcd 2>&1 | tee /tmp/dnf-thiscloud.log | tail -20
+# NOTE: etcd is staged as a static binary (see etcd block below), NOT an RPM —
+# the EPEL RPM is unreliable (unavailable repos fail the whole dnf transaction).
+dnf install -y --enablerepo=thiscloud thiscloud thiscloudd 2>&1 | tee /tmp/dnf-thiscloud.log | tail -20
 DNF_OK=0
 if [ "${PIPESTATUS[0]}" -ne 0 ]; then
   DNF_OK=1
@@ -288,7 +291,7 @@ fi
 # Always verify critical binaries exist — RPM install can "succeed" but skip
 # files due to conflicts or missing deps.
 NEED_FALLBACK=0
-for BIN_PAIR in "thiscloudd:/usr/sbin/thiscloudd" "thiscloud-cli:/usr/bin/thiscloud"; do
+for BIN_PAIR in "thiscloudd:/usr/sbin/thiscloudd" "thiscloud-cli:/usr/bin/thiscloud" "etcd:/usr/bin/etcd"; do
   NAME="${BIN_PAIR%%:*}"
   DEST="${BIN_PAIR##*:}"
   if [ ! -f "$DEST" ] || [ ! -x "$DEST" ]; then
@@ -298,7 +301,7 @@ for BIN_PAIR in "thiscloudd:/usr/sbin/thiscloudd" "thiscloud-cli:/usr/bin/thiscl
 done
 if [ "$NEED_FALLBACK" -eq 1 ]; then
   echo "==> Falling back to manual binary installation from staging..."
-  for BIN_PAIR in "thiscloudd:/usr/sbin/thiscloudd" "thiscloud-cli:/usr/bin/thiscloud"; do
+  for BIN_PAIR in "thiscloudd:/usr/sbin/thiscloudd" "thiscloud-cli:/usr/bin/thiscloud" "etcd:/usr/bin/etcd"; do
     NAME="${BIN_PAIR%%:*}"
     DEST="${BIN_PAIR##*:}"
     if [ -f "/tmp/$NAME" ]; then
@@ -546,7 +549,8 @@ rm -f /tmp/cloud-hypervisor /tmp/thiscloud-api /tmp/thiscloud-open-ports /tmp/th
 # ── Enable services ─────────────────────────────────────────────────
 echo "==> Enabling services"
 systemctl daemon-reload 2>/dev/null || true
-systemctl enable etcd 2>/dev/null || true
+# etcd is embedded by the daemon (static binary, owns 2379). Do NOT enable a
+# system etcd.service — it would collide with the embedded instance.
 systemctl enable openvswitch 2>/dev/null || true
 systemctl enable ovn-controller 2>/dev/null || true
 systemctl enable linstor-controller 2>/dev/null || true
