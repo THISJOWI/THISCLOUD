@@ -1,0 +1,139 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler musl-tools
+
+      - name: Rust toolchain (musl target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: platform/web-ui/package-lock.json
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Patch workspace version
+        working-directory: platform
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/^version = \".*\"$/version = \"$VERSION\"/" Cargo.toml
+          grep '^version' Cargo.toml
+
+      - name: Cross-compile Rust (musl)
+        working-directory: platform
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CXX_x86_64_unknown_linux_musl: musl-gcc
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Build RPMs
+        working-directory: platform
+        run: |
+          cargo install cargo-generate-rpm --locked
+          mkdir -p target/release
+          cp -f target/x86_64-unknown-linux-musl/release/thiscloudd target/release/thiscloudd
+          cp -f target/x86_64-unknown-linux-musl/release/thiscloud target/release/thiscloud
+          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloudd
+          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloud-cli
+          ls -lh target/x86_64-unknown-linux-musl/generate-rpm/
+
+      - name: Build Go API binary
+        working-directory: platform/go-api
+        run: |
+          mkdir -p ../../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../../dist/thiscloud-api-linux-amd64 ./cmd/api-server
+
+      - name: Build web-ui (Next.js standalone)
+        working-directory: platform/web-ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Stage release assets
+        working-directory: platform
+        run: |
+          mkdir -p dist
+          cp -f target/x86_64-unknown-linux-musl/generate-rpm/*.rpm dist/
+
+          # Web UI standalone tarball (server.js at tarball root, matching
+          # /usr/share/thiscloud/web-ui layout on the target).
+          mkdir -p dist/webui
+          cp -a web-ui/.next/standalone/* dist/webui/
+          mkdir -p dist/webui/.next
+          cp -a web-ui/.next/static dist/webui/.next/static
+          [ -d web-ui/public ] && cp -a web-ui/public dist/webui/public
+          cp -f web-ui/package.json dist/webui/
+          tar -czf dist/thiscloud-webui.tar.gz -C dist/webui .
+          rm -rf dist/webui
+
+          # systemd unit tarball
+          tar -czf dist/thiscloud-systemd.tar.gz -C iso/systemd .
+
+          echo "==> Staged assets:"
+          ls -lh dist/
+
+      - name: Generate manifest.json
+        working-directory: platform/dist
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node - <<'EOF'
+          const fs = require("fs");
+          const crypto = require("crypto");
+          const files = fs.readdirSync(".").filter(f => f !== "manifest.json");
+          const assets = files.map(name => {
+            const data = fs.readFileSync(name);
+            const sha256 = crypto.createHash("sha256").update(data).digest("hex");
+            return { name, sha256 };
+          });
+          const manifest = {
+            version: process.env.RELEASE_VERSION,
+            release_date: new Date().toISOString().slice(0, 10),
+            assets,
+          };
+          fs.writeFileSync("manifest.json", JSON.stringify(manifest, null, 2));
+          console.log(JSON.stringify(manifest, null, 2));
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: platform/dist/*
+          generate_release_notes: true

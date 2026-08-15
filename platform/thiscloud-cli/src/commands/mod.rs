@@ -6,6 +6,7 @@ pub mod network;
 pub mod node;
 pub mod status;
 pub mod storage;
+pub mod update;
 pub mod vm;
 
 use std::time::Duration;
@@ -18,6 +19,7 @@ pub use network::run_network_command;
 pub use node::run_node_command;
 pub use status::run_status;
 pub use storage::run_storage_command;
+pub use update::run_update;
 pub use vm::run_vm_command;
 
 /// Build a reqwest client with a 30-second timeout for all requests.

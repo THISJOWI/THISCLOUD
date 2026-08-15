@@ -68,6 +68,15 @@ enum Commands {
         #[command(subcommand)]
         command: ImageCommands,
     },
+    /// Check for and apply THISCLOUD updates
+    Update {
+        /// Only check for updates, do not install
+        #[arg(long)]
+        check: bool,
+        /// Print the installed version and exit
+        #[arg(long)]
+        version: bool,
+    },
 }
 
 #[tokio::main]
@@ -84,5 +93,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Marketplace { command } => commands::run_marketplace_command(command).await,
         Commands::Node { command } => commands::run_node_command(command).await,
         Commands::Image { command } => commands::run_image_command(command).await,
+        Commands::Update { check, version } => commands::run_update(check, version).await,
     }
 }

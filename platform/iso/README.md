@@ -73,6 +73,28 @@ iso/
 | `nginx.service`          | 80    | Reverse proxy → web UI on port 3000      |
 | `etcd.service`           | 2379  | Key-value store for cluster state         |
 
+## Updating a running system
+
+Installed systems pull updates from **GitHub Releases** via the CLI — no need to
+reinstall the ISO for a fix or new feature.
+
+```sh
+thiscloud update --check      # is a newer release available?
+sudo thiscloud update         # download + install + restart services
+thiscloud update --version    # print the installed version
+```
+
+- Every tagged release (`git tag v0.2.0 && git push origin v0.2.0`) triggers
+  `.github/workflows/release.yml`, which builds RPMs + binaries and attaches them
+  to the GitHub Release.
+- `thiscloud update` downloads `manifest.json` first, verifies the sha256 of every
+  asset, backs up the current state to `/etc/thiscloud/backup-v<ver>/`, installs,
+  restarts services, and records the new version in `/etc/thiscloud/version`.
+- On any failure it rolls back binaries, systemd units, and the web UI, and
+  attempts a `dnf downgrade` of the RPM packages.
+- Override the repo with `THISCLOUD_UPDATE_REPO=owner/repo`; pass a GitHub token
+  via `THISCLOUD_UPDATE_TOKEN` to avoid rate limits / reach private repos.
+
 ## Dependency matrix
 
 | Component        | Source                              | Install method               |

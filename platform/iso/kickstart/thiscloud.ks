@@ -549,6 +549,12 @@ if [ ! -f /etc/thiscloud/config.toml ]; then
   /usr/bin/thiscloud init --ip "${LASTIP:-127.0.0.1}" --role master 2>/dev/null || echo "WARNING: thiscloud init failed (CLI may not be installed)"
 fi
 
+# ── THISCLOUD version tracking ──────────────────────────────────────
+# Records the installed version so `thiscloud update` can detect upgrades.
+# Bump this in lockstep with the ISO version (build-iso.sh VERSION).
+echo "==> Writing version file"
+echo "0.1.0" > /etc/thiscloud/version
+
 echo "==> THISCLOUD post-install complete"
 echo "    Installed components:"
 echo "      - thiscloud CLI: $(which thiscloud 2>/dev/null || echo 'NOT FOUND') ($(test -f /usr/bin/thiscloud && stat -c%s /usr/bin/thiscloud || echo 0) bytes)"
