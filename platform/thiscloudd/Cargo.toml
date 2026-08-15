@@ -18,17 +18,19 @@ anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 etcd-client = "0.14"
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 rustls-pemfile = "2"
+futures-util = "0.3"
 
 [dev-dependencies]
 tempfile.workspace = true
 tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.24"
 
 [package.metadata.generate-rpm]
 package-name = "thiscloudd"

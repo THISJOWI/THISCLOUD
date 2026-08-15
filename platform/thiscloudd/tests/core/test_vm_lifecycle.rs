@@ -272,6 +272,28 @@ async fn test_vm_console_url() {
 }
 
 #[tokio::test]
+async fn test_vm_console_ws_banner() {
+    use futures_util::StreamExt;
+
+    let app = new_app();
+    seed_vm(&app, "lc-6", "lc6").await;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let url = format!("ws://{addr}/api/v1/vms/lc-6/console/ws");
+    let (mut socket, _resp) = tokio_tungstenite::connect_async(url).await.unwrap();
+    let msg = socket.next().await.unwrap().unwrap();
+    let text = msg.into_text().unwrap();
+    assert!(text.contains("THISCLOUD console"), "banner={text:?}");
+    assert!(text.contains("lc-6"), "banner={text:?}");
+    socket.close(None).await.unwrap();
+}
+
+#[tokio::test]
 async fn test_vm_create_with_lifecycle_flags() {
     let app = new_app();
     let body = serde_json::json!({

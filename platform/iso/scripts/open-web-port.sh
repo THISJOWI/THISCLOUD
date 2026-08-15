@@ -6,7 +6,7 @@
 # Supports firewalld, nftables, and iptables in order of preference.
 set -euo pipefail
 
-WEB_PORT="${THISCLLOUD_WEB_PORT:-80}"
+WEB_PORT="${THISCLOUD_WEB_PORT:-80}"
 
 open_firewalld() {
   echo "==> firewalld detected"

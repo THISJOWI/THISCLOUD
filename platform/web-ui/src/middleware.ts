@@ -42,7 +42,12 @@ export async function middleware(request: NextRequest) {
     return pathname.startsWith("/api/") ? unauthorized() : redirectToLogin(request);
   }
 
-  const claims = await verifySessionToken(session);
+  let claims;
+  try {
+    claims = await verifySessionToken(session);
+  } catch {
+    claims = null;
+  }
   if (!claims) {
     return pathname.startsWith("/api/") ? unauthorized() : redirectToLogin(request);
   }

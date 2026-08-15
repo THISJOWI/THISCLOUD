@@ -3,12 +3,14 @@ use crate::auth::TenantContext;
 use crate::compute::vm::{ConsoleInfo, DiskConfig, VmConfig};
 use crate::compute::ComputeModule;
 use crate::core::AppError;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::middleware;
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
+use futures_util::StreamExt;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -91,6 +93,7 @@ pub fn app(state: ApiState) -> Router {
         .route("/vms/:id/nics", put(attach_nic))
         .route("/vms/:id/nics/:tap", delete(detach_nic))
         .route("/vms/:id/console", get(console_vm))
+        .route("/vms/:id/console/ws", get(console_ws))
         .route_layer(middleware::from_extractor::<RequireRole<WriteSet>>());
 
     read.merge(create).merge(mutate).with_state(state)
@@ -298,4 +301,40 @@ async fn console_vm(
     let module = state.module.lock().await;
     let info = module.console_url(&ctx.tenant_id, &id).await?;
     Ok(Json(info))
+}
+
+async fn console_ws(
+    State(state): State<ApiState>,
+    ctx: TenantContext,
+    Path(id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> Result<axum::response::Response, AppError> {
+    {
+        let module = state.module.lock().await;
+        module.get_vm(&ctx.tenant_id, &id).await?;
+    }
+    Ok(ws.on_upgrade(move |socket| console_session(socket, id)))
+}
+
+async fn console_session(mut socket: WebSocket, id: String) {
+    let banner = format!(
+        "\r\nTHISCLOUD console — vm {}\r\nType commands (mock backend echoes input).\r\n\r\n",
+        id
+    );
+    if socket.send(Message::Text(banner)).await.is_err() {
+        return;
+    }
+
+    while let Some(msg) = socket.next().await {
+        match msg {
+            Ok(Message::Text(text)) => {
+                if socket.send(Message::Text(text)).await.is_err() {
+                    break;
+                }
+            }
+            Ok(Message::Close(_)) => break,
+            Ok(_) => {}
+            Err(_) => break,
+        }
+    }
 }

@@ -7,15 +7,15 @@ const NAV_SECTIONS = [
   {
     label: "OVERVIEW",
     links: [
-      { href: "/", label: "Portal", icon: "◈" },
+      { href: "/", label: "Dashboard", icon: "◈" },
     ],
   },
   {
     label: "INFRASTRUCTURE",
     links: [
-      { href: "/admin", label: "Virtual Machines", icon: "▣" },
-      { href: "/admin#networks", label: "Networks", icon: "⬡" },
-      { href: "/admin#storage", label: "Storage", icon: "⬢" },
+      { href: "/admin/vms", label: "Virtual Machines", icon: "▣" },
+      { href: "/admin/networks", label: "Networks", icon: "⬡" },
+      { href: "/admin/storage", label: "Storage", icon: "⬢" },
     ],
   },
   {
@@ -31,7 +31,7 @@ export function Sidebar() {
 
   function isActive(href: string): boolean {
     if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    return pathname === href || pathname.startsWith(href + "/");
   }
 
   return (
