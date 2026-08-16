@@ -147,6 +147,12 @@ impl ComputeModule {
 
     pub async fn create_vm(&mut self, tenant_id: &str, mut vm: VmConfig) -> anyhow::Result<()> {
         vm.tenant_id = tenant_id.to_string();
+        // Guarantee a stable id in the module layer (not just http.rs) so any
+        // caller — CLI, web UI, tests, internal flows — stores an addressable
+        // VM. Without it, deletes target an empty id.
+        if vm.id.is_empty() {
+            vm.id = Uuid::new_v4().to_string();
+        }
         self.enforce_quota(tenant_id, &vm).await?;
         self.place_on_node(&mut vm).await?;
         self.resolve_image(tenant_id, &mut vm).await?;

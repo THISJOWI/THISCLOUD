@@ -29,6 +29,21 @@ async fn test_compute_module_create_and_list() {
 }
 
 #[tokio::test]
+async fn test_create_vm_assigns_id_when_empty() {
+    let store = MemoryVmStore::default();
+    let mut module = ComputeModule::new(Box::new(MockHypervisor::new()), Box::new(store));
+
+    let mut vm = sample_vm("no-id-vm");
+    vm.id = String::new();
+    module.create_vm("", vm).await.unwrap();
+
+    let vms = module.list_vms("").await.unwrap();
+    assert_eq!(vms.len(), 1);
+    assert!(!vms[0].id.is_empty(), "module must assign an id to a VM created without one");
+    assert_eq!(vms[0].name, "no-id-vm");
+}
+
+#[tokio::test]
 async fn test_compute_module_start_stop_updates_status() {
     let store = MemoryVmStore::default();
     let mut module = ComputeModule::new(Box::new(MockHypervisor::new()), Box::new(store));
