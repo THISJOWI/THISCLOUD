@@ -194,14 +194,12 @@ else
   createrepo_c "$RPM_DIR" 2>/dev/null || true
 fi
 
-echo "==> [8/9] Build product.img for Anaconda branding"
-bash iso/scripts/make-product-img.sh
-
-echo "==> [9/9] Remix ISO with THISCLOUD branding"
-# remix-iso.sh extracts the base ISO, rebrands boot menus, injects the
-# kickstart, repo, and product.img, then rebuilds with xorriso.
-INPUT_ISO="$ALMAISO" OUTPUT_ISO="$OUT/ThisCloud-${VERSION}-x86_64.iso" \
-  bash iso/scripts/remix-iso.sh
+echo "==> [8/9] Build live installer ISO (Calamares)"
+# The old Anaconda path (make-product-img.sh + remix-iso.sh) is replaced by
+# the Calamares live flow. Calamares+KPMcore are compiled from source and
+# the live ISO is assembled by livemedia-creator.
+ALMAISO="$ALMAISO" OUT="$OUT" VERSION="$VERSION" \
+  bash iso/calamares/scripts/build-live-iso.sh
 
 echo ""
 echo "==> Done"

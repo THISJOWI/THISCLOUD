@@ -128,6 +128,18 @@ mkdir -p "$REPO/systemd"
 cp -f "$ISO_DIR/systemd/"*.service "$REPO/systemd/" 2>/dev/null \
   || echo "warning: no systemd service files found in $ISO_DIR/systemd/"
 
+# ── Calamares + KPMcore source tarballs (for build-calamares.sh) ────
+echo "==> Fetching Calamares/KPMcore sources"
+mkdir -p "$REPO/sources"
+if [ ! -f "$REPO/sources/calamares-3.3.14.tar.gz" ]; then
+  curl -fSL "https://github.com/calamares/calamares/archive/refs/tags/v3.3.14.tar.gz" \
+    -o "$REPO/sources/calamares-3.3.14.tar.gz"
+fi
+if [ ! -f "$REPO/sources/kpmcore-v24.05.2.tar.gz" ]; then
+  curl -fSL "https://invent.kde.org/libs/kpmcore/-/archive/v24.05.2/kpmcore-v24.05.2.tar.gz" \
+    -o "$REPO/sources/kpmcore-v24.05.2.tar.gz"
+fi
+
 # Note: createrepo_c is called by build-iso.sh after this script.
 # Do NOT call it here to avoid double work.
 echo "==> Dependency RPMs staged in $RPM_DIR"
