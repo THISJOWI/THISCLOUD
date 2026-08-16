@@ -1,0 +1,13 @@
+/* THISCLOUD stylesheet for Calamares Qt widgets. */
+QWidget { background-color: #0f1115; color: #e6e9ef; }
+#sidebarApp { background-color: #171a21; }
+#sidebarApp QLabel { color: #e6e9ef; }
+QPushButton { background-color: #171a21; border: 1px solid #3b82f6;
+              border-radius: 4px; padding: 6px 16px; color: #e6e9ef; }
+QPushButton:hover { background-color: #3b82f6; color: #0f1115; }
+QPushButton:disabled { border-color: #33363d; color: #6b7280; }
+QLineEdit, QComboBox, QSpinBox { background-color: #171a21; border: 1px solid #33363d;
+                                 border-radius: 4px; padding: 4px 8px; color: #e6e9ef; }
+QLineEdit:focus, QComboBox:focus { border-color: #3b82f6; }
+QProgressBar { background-color: #171a21; border: 1px solid #33363d; border-radius: 4px; }
+QProgressBar::chunk { background-color: #3b82f6; }

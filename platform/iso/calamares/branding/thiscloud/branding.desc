@@ -1,0 +1,54 @@
+# THISCLOUD product branding for Calamares.
+# Installed to /etc/calamares/branding/thiscloud/ on the live system.
+---
+componentName: thiscloud
+
+# Show the traditional "Welcome to the THISCLOUD installer."
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+
+# Window: fixed 900x640, centered, no auto-expansion (works with openbox).
+windowExpanding: normal
+windowSize: 900px,640px
+windowPlacement: center
+
+# Sidebar: standard widget sidebar on the left.
+sidebar: widget
+
+# Navigation: standard buttons at the bottom.
+navigation: widget
+
+# Text shown to the user. ${NAME} resolved from /etc/os-release on the live system.
+strings:
+  productName: "THISCLOUD"
+  shortProductName: THISCLOUD
+  version: "0.1.0 (Nucleus)"
+  shortVersion: 0.1.0
+  versionedName: "THISCLOUD 0.1.0 (Nucleus)"
+  shortVersionedName: THISCLOUD 0.1.0
+  bootloaderEntryName: THISCLOUD
+  productUrl: "https://github.com/THISJOWI/THISCLOUD"
+  supportUrl: "https://github.com/THISJOWI/THISCLOUD/issues"
+  knownIssuesUrl: "https://github.com/THISJOWI/THISCLOUD/issues"
+  releaseNotesUrl: "https://github.com/THISJOWI/THISCLOUD/releases"
+  donateUrl: ""
+
+images:
+  productIcon: "productIcon.png"
+  productLogo: "productLogo.png"
+  productWelcome: "productWelcome.png"
+  productWallpaper: "wallpaper.png"
+
+# Sidebar colors — dark THISCLOUD palette.
+style:
+  SidebarBackground: "#171a21"
+  SidebarText: "#e6e9ef"
+  SidebarBackgroundCurrent: "#3b82f6"
+  SidebarTextCurrent: "#0f1115"
+
+# Image slideshow during install (see show.qml task below).
+slideshow: "show.qml"
+slideshowAPI: 2
+
+uploadServer:
+  type: "none"

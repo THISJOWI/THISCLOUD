@@ -354,12 +354,18 @@ class TestBrandingDesc(unittest.TestCase):
             self.assertIn(key, text, f"missing key {key}")
 
     def test_required_pngs_referenced(self):
+        # Calamares images: keys are productBanner/productIcon/productLogo/
+        # productWallpaper/productWelcome; SidebarBackground is a color, so
+        # sidebar-bg.png is generated but never referenced by branding.desc.
         with open(os.path.join(BRANDING, "branding.desc")) as f:
             text = f.read()
         for img in ("productIcon.png", "productLogo.png", "productWelcome.png",
-                    "wallpaper.png", "sidebar-bg.png"):
+                    "wallpaper.png"):
             self.assertIn(img, text)
             self.assertTrue(os.path.isfile(os.path.join(BRANDING, img)), img)
+
+    def test_sidebar_bg_exists(self):
+        self.assertTrue(os.path.isfile(os.path.join(BRANDING, "sidebar-bg.png")))
 
 
 if __name__ == "__main__":
@@ -1994,6 +2000,8 @@ git commit -m "docs(iso): add Calamares installer README"
 - `live.ks` `%packages` initially listed `calamares`/`kpmcore` (not RPMs) — would break dnf; fixed by the RPM-repo rewrite above.
 - `live.ks` `%post` wrote the openbox autostart but never started openbox (`startx` without `.xinitrc` falls back to xterm). **Added `/home/live/.xinitrc` with `exec openbox-session`.**
 - `install-deps.sh` additions now include `createrepo_c rpm-build` (needed for Task 7 RPM packaging).
+- Task 1 runtime fix: `write_png` must pass `(x, y, width, height)` to the pixel closure; `gradient`/`solid`/`icon_pix`/`logo_pix`/`slide_pix` all take `(x, y, w, h)`. (Original plan had 2-arg calls → TypeError.)
+- Task 2 schema fix: Calamares `images:` accepts only `productBanner/productIcon/productLogo/productWallpaper/productWelcome`; `SidebarBackground` in `style:` is a color, not an image file. `sidebar-bg.png` is generated but never referenced by `branding.desc`. Test split into `test_required_pngs_referenced` (only referenced PNGs) + `test_sidebar_bg_exists`.
 
 **4. Type consistency:** `thiscloudRole/thiscloudClusterName/thiscloudNodeIp/thiscloudInterface` names identical across Task 4 (write in C++), Task 5 (read in Python), Task 6 (no direct ref), Task 12 (docs). `build_init_args` returns `["/usr/bin/thiscloud", "init", ...]` matching the CLI's `thiscloud init --ip --role` in Task 5's usage. PNG filenames consistent across Tasks 1-2. Module names (`thiscloudqml`, `thiscloud`) consistent across Tasks 4-6.
 
