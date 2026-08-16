@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=THISCLOUD Installer
+Comment=Install THISCLOUD to this computer
+Exec=/usr/bin/calamares --style thiscloud
+Terminal=false
+Categories=System;
+X-GNOME-Autostart-enabled=true
