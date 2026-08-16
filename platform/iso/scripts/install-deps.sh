@@ -89,6 +89,18 @@ rustup target add x86_64-unknown-linux-gnu
 echo "==> Installing cargo-generate-rpm"
 cargo install cargo-generate-rpm --locked
 
+# ── Calamares builder deps (compile from source for EL9) ─────────────
+echo "==> Installing Calamares/KPMcore build deps"
+dnf install -y \
+  gcc-c++ gcc make cmake ninja-build \
+  qt6-qtbase-devel qt6-qtsvg-devel qt6-qtdeclarative-devel \
+  qt6-qtquickcontrols2-devel qt6-qtquicktemplates2-devel \
+  boost-devel yaml-cpp-devel parted-devel \
+  extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel kf5-kconfig-devel \
+  python3 python3-devel python3-pyqt6 \
+  lorax livemedia-utils createrepo_c rpm-build 2>/dev/null \
+  || echo "WARNING: some Calamares deps unavailable from current repos (EPEL9 may be needed)"
+
 echo "==> Verifying tools"
 MISSING=0
 for tool in curl cpio createrepo_c xorriso rustup cargo; do
