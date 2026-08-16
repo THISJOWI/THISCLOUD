@@ -61,10 +61,13 @@ async fn get_node(
     Path(id): Path<String>,
 ) -> Result<Json<Node>, AppError> {
     let module = state.module.lock().await;
-    let node = module
+    let mut node = module
         .get(&id)
         .await?
         .ok_or_else(|| AppError::NotFound("node not found".into()))?;
+    // Apply the same TTL-based state derivation the list endpoint uses, so a
+    // single-node lookup reports the same effective state as the list view.
+    node.state = NodeModule::effective_state(&node);
     Ok(Json(node))
 }
 

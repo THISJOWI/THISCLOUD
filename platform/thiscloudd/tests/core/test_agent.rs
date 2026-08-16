@@ -72,3 +72,54 @@ master = "http://192.168.1.12:8080"
         "worker with a master list must not self-seed locally"
     );
 }
+
+/// The list and single-node lookups must agree on effective state. A node whose
+/// TTL has elapsed reports offline through both endpoints; a fresh one is
+/// online through both.
+#[tokio::test]
+async fn test_node_state_consistent_between_list_and_get() {
+    let config = thiscloudd::config::ThisCloudConfig::default();
+    let mut daemon = thiscloudd::core::Daemon::new(config, None);
+    daemon.start().await.unwrap();
+
+    let app = daemon.http_router();
+
+    let list_resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .uri("/api/v1/nodes")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(list_resp.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(list_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let nodes: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(nodes.len(), 1, "expected exactly one seeded node");
+    let listed = &nodes[0];
+
+    let get_resp = app
+        .oneshot(
+            axum::http::Request::builder()
+                .uri(format!("/api/v1/nodes/{}", listed["id"].as_str().unwrap()))
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let got: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        got["state"], listed["state"],
+        "GET /nodes/:id must report the same effective state as the list"
+    );
+    assert_eq!(got["id"], listed["id"]);
+}
