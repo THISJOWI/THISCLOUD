@@ -22,6 +22,10 @@ type Resource interface {
 	Type() ResourceType
 	ID() string
 	Attributes() map[string]any
+	// DeletableID is the identifier the daemon expects on its DELETE route.
+	// VMs and networks are addressed by id; storage pools have no id in the
+	// daemon and are addressed by name. Using ID() for storage would 404.
+	DeletableID() string
 }
 
 // VM mirrors the compute module's VM model exposed by thiscloudd.
@@ -63,17 +67,23 @@ type StoragePool struct {
 	Replication int      `json:"replication"`
 }
 
+// daemonPayload is the payload the daemon expects for each resource type. The
+// Go model keeps UI-facing field names (vcpus, disk_gb), but the daemon's Rust
+// structs use their own (cpus, disk_path) and reject empty/null sequences and
+// empty enums. Emit exactly what the daemon serializes so apply() succeeds and
+// the resource actually materializes in the daemon — otherwise deletes fail.
 func (r VM) Type() ResourceType { return ResourceVM }
 func (r VM) ID() string         { return r.ResourceID }
+func (r VM) DeletableID() string {
+	return r.ResourceID
+}
 func (r VM) Attributes() map[string]any {
 	attrs := map[string]any{
 		"name":      r.Name,
-		"vcpus":     r.VCPUs,
+		"cpus":      r.VCPUs,
 		"memory_mb": r.MemoryMB,
-		"disk_gb":   r.DiskGB,
 		"image":     r.Image,
-		"networks":  r.Networks,
-		"status":    r.Status,
+		"networks":  nonNil(r.Networks),
 	}
 	if r.Node != "" {
 		attrs["node"] = r.Node
@@ -92,25 +102,56 @@ func (r VM) Attributes() map[string]any {
 
 func (r Network) Type() ResourceType { return ResourceNetwork }
 func (r Network) ID() string         { return r.ResourceID }
+func (r Network) DeletableID() string {
+	return r.ResourceID
+}
 func (r Network) Attributes() map[string]any {
-	return map[string]any{
+	attrs := map[string]any{
 		"name":    r.Name,
 		"cidr":    r.CIDR,
 		"gateway": r.Gateway,
-		"vlan":    r.VLAN,
-		"dns":     r.DNS,
+		"dns":     nonNil(r.DNS),
 	}
+	if r.VLAN != nil {
+		attrs["vlan"] = *r.VLAN
+	}
+	return attrs
 }
 
 func (r StoragePool) Type() ResourceType { return ResourceStorage }
 func (r StoragePool) ID() string         { return r.ResourceID }
+func (r StoragePool) DeletableID() string {
+	// The daemon's storage module keys pools by name — there is no id field.
+	return r.Name
+}
 func (r StoragePool) Attributes() map[string]any {
+	replication := r.Replication
+	if replication <= 0 {
+		replication = 2 // daemon default; it rejects replication == 0
+	}
 	return map[string]any{
 		"name":        r.Name,
-		"pool_type":   r.PoolType,
-		"devices":     r.Devices,
-		"replication": r.Replication,
+		"pool_type":   nonEmpty(r.PoolType, "linstor"),
+		"devices":     nonNil(r.Devices),
+		"replication": replication,
 	}
+}
+
+// nonNil returns a non-nil slice so JSON serializes as [] instead of null;
+// the daemon rejects null for sequence fields.
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// nonEmpty returns v, or fallback when v is blank (daemon rejects "" enums).
+func nonEmpty(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+	return v
 }
 
 // newID returns a random UUID v4 string, matching the daemon's id scheme for

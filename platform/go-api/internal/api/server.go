@@ -196,7 +196,7 @@ func (s *Server) deleteResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.backend.Delete(r.Context(), collectionFor(res.Type()), res.ID()); err != nil {
+	if err := s.backend.Delete(r.Context(), collectionFor(res.Type()), res.DeletableID()); err != nil {
 		// State cleanup proceeds even if the daemon is unreachable so the
 		// orchestrator stays the source of truth for its own state file.
 		log.Printf("warning: daemon delete failed: %v", err)
