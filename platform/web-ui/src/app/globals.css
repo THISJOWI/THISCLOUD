@@ -1201,6 +1201,14 @@ a {
   background: var(--surface-container);
 }
 
+.import-divider {
+  margin: 14px 0 10px;
+  font-size: var(--body-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* ============================================================
    ERROR / STATUS MESSAGES
    ============================================================ */

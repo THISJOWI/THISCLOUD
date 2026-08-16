@@ -40,6 +40,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/resources/{type}/{id}", s.deleteResource)
 	mux.HandleFunc("GET /api/v1/images", s.listImages)
 	mux.HandleFunc("POST /api/v1/images", s.registerImage)
+	mux.HandleFunc("PUT /api/v1/images/{id}/upload", s.uploadImage)
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
@@ -92,6 +93,18 @@ func (s *Server) registerImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, payload)
+}
+
+// uploadImage streams an artifact file (ISO/qcow2) to the daemon. The body is
+// passed through as raw bytes — it can be multi-GB, so no buffering or the
+// 10 MB readBody limit applies.
+func (s *Server) uploadImage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.backend.UploadImage(r.Context(), id, r.Body); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "uploaded", "id": id})
 }
 
 func (s *Server) listResources(w http.ResponseWriter, r *http.Request) {

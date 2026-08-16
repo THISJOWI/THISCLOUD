@@ -215,3 +215,24 @@ export async function registerImage(
   }
   return res.json();
 }
+
+/**
+ * Upload a local artifact file (ISO/qcow2) for an already-registered image.
+ * Bytes pass through the proxy untouched.
+ */
+export async function uploadImage(
+  id: string,
+  file: File
+): Promise<Image> {
+  const res = await apiFetch(`/api/v1/images/${id}/upload`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file,
+  });
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "unknown error");
+    console.error(`[api] PUT /api/v1/images/${id}/upload failed (${res.status}):`, raw);
+    throw new Error(`API error (status ${res.status})`);
+  }
+  return res.json();
+}

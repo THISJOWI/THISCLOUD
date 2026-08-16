@@ -72,9 +72,14 @@ async function proxyRequest(
     headers,
   };
 
-  // Forward body for non-GET/HEAD requests
+  // Forward body for non-GET/HEAD requests. Use arrayBuffer so binary
+  // uploads (image artifacts) survive the pass-through; text() would corrupt
+  // non-UTF-8 bytes.
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.text();
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 0) {
+      init.body = new Uint8Array(buf);
+    }
   }
 
   try {

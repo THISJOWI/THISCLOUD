@@ -25,9 +25,35 @@ impl ImageModule {
         }
         image.tenant_id = tenant_id.to_string();
         image.status = ImageStatus::Available;
-        self.backend.import(image).await?;
+        // A registration without a source is the first half of an upload:
+        // the caller registers metadata, then PUTs the artifact bytes.
+        if !image.source.is_empty() {
+            self.backend.import(image).await?;
+        }
         self.store.put(tenant_id, image).await?;
         Ok(image.clone())
+    }
+
+    /// Persist an uploaded artifact (raw bytes) for an already-registered image.
+    /// `id` may be the image's UUID or its unique name.
+    pub async fn upload(
+        &mut self,
+        tenant_id: &str,
+        id: &str,
+        data: &[u8],
+    ) -> anyhow::Result<Image> {
+        let mut image = match self.get(tenant_id, id).await {
+            Ok(img) => img,
+            Err(_) => match self.get_by_name(tenant_id, id).await? {
+                Some(img) => img,
+                None => anyhow::bail!("image {id} not found"),
+            },
+        };
+        self.backend.store(&image, data).await?;
+        image.size_bytes = data.len() as u64;
+        image.status = ImageStatus::Available;
+        self.store.put(tenant_id, &image).await?;
+        Ok(image)
     }
 
     pub async fn remove(&mut self, tenant_id: &str, id: &str) -> anyhow::Result<()> {

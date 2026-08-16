@@ -3,6 +3,7 @@ use crate::auth::TenantContext;
 use crate::core::AppError;
 use crate::image::Image;
 use crate::image::module::ImageModule;
+use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::middleware;
@@ -35,6 +36,7 @@ pub fn app(state: ImageApiState) -> Router {
 
     let mutate = Router::new()
         .route("/images/:id", delete(remove_image))
+        .route("/images/:id/upload", put(upload_image))
         .route("/images/:id/template", put(set_template))
         .route_layer(middleware::from_extractor::<RequireRole<WriteSet>>());
 
@@ -73,6 +75,20 @@ async fn get_image(
             .await?
             .ok_or_else(|| AppError::NotFound(format!("image {id} not found")))?,
     };
+    Ok(Json(image))
+}
+
+/// Accepts raw artifact bytes (e.g. an uploaded ISO/qcow2) for an
+/// already-registered image. The client first POSTs /images with metadata,
+/// then PUTs the file here. Content-Type is application/octet-stream.
+async fn upload_image(
+    State(state): State<ImageApiState>,
+    ctx: TenantContext,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> Result<Json<Image>, AppError> {
+    let mut module = state.module.lock().await;
+    let image = module.upload(&ctx.tenant_id, &id, &body).await?;
     Ok(Json(image))
 }
 

@@ -50,6 +50,28 @@ func (c *Client) RegisterImage(ctx context.Context, image any) error {
 	return c.request(ctx, http.MethodPost, "images", image)
 }
 
+// UploadImage streams raw artifact bytes to the daemon (PUT /images/{id}/upload).
+// Used for local file uploads (ISO/qcow2) that never have a fetchable URL.
+func (c *Client) UploadImage(ctx context.Context, id string, data io.Reader) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.baseURL+"/images/"+id+"/upload", data)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("daemon returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	return nil
+}
+
 // ListNodes returns the cluster nodes registered with the daemon (GET /nodes).
 // Nodes are read-through: they self-register via heartbeat and are never
 // part of the orchestrator's desired state.

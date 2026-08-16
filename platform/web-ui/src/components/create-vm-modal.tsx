@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Image, listImages, registerImage } from "@/lib/api";
+import { Image, listImages, registerImage, uploadImage } from "@/lib/api";
 
 type FormState = {
   name: string;
@@ -44,6 +44,7 @@ export function CreateVmModal({
   const [form, setForm] = useState<FormState>(EMPTY);
   const [images, setImages] = useState<Image[]>([]);
   const [importing, setImporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [importForm, setImportForm] = useState({
     name: "",
     source: "",
@@ -51,6 +52,7 @@ export function CreateVmModal({
     os_family: "alma",
     version: "",
   });
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -93,6 +95,43 @@ export function CreateVmModal({
       setError(String(err));
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function onUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile) {
+      setError("Select a local file to upload");
+      return;
+    }
+    const baseName = uploadFile.name.replace(/\.(iso|qcow2|qcow|img|raw)$/i, "");
+    const inferredFormat = uploadFile.name.toLowerCase().endsWith(".iso")
+      ? "iso"
+      : uploadFile.name.toLowerCase().endsWith(".qcow2") || uploadFile.name.toLowerCase().endsWith(".qcow")
+        ? "qcow2"
+        : "raw";
+    setUploading(true);
+    setError("");
+    setNotice("");
+    try {
+      const img = await registerImage({
+        name: importForm.name.trim() || baseName,
+        source: "",
+        format: importForm.format || inferredFormat,
+        os_family: importForm.os_family,
+        version: importForm.version.trim(),
+      });
+      await uploadImage(img.id!, uploadFile);
+      const fresh = await listImages();
+      setImages(fresh);
+      setForm((f) => ({ ...f, image: img.name || "" }));
+      setNotice(`Image "${img.name}" uploaded (${uploadFile.name}).`);
+      setUploadFile(null);
+      setImportForm({ name: "", source: "", format: "qcow2", os_family: "alma", version: "" });
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -309,6 +348,33 @@ export function CreateVmModal({
                   style={{ marginTop: 4 }}
                 >
                   {importing ? "Registering..." : "Register image"}
+                </button>
+
+                <div className="import-divider">or upload a local file</div>
+                <div className="form-grid">
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <input
+                      id="imp-file"
+                      type="file"
+                      accept=".iso,.qcow2,.qcow,.img,.raw"
+                      className="form-input"
+                      onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                    />
+                    {uploadFile && (
+                      <p className="field-hint" style={{ marginTop: 4 }}>
+                        {uploadFile.name} — {(uploadFile.size / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={onUpload}
+                  disabled={uploading || !uploadFile}
+                  style={{ marginTop: 4 }}
+                >
+                  {uploading ? "Uploading..." : "Upload image"}
                 </button>
               </div>
             </div>
