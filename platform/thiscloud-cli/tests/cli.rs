@@ -39,6 +39,15 @@ fn test_cli_init_creates_config() {
     assert!(data_dir.join("storage").exists());
 }
 
+fn dead_api_url() -> String {
+    // Bind a listener, grab the port, drop it: nothing is left listening,
+    // so health probes fail deterministically regardless of host state.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+    format!("http://{addr}/api/v1")
+}
+
 #[test]
 fn test_cli_status_after_init() {
     let tmp = TempDir::new().unwrap();
@@ -52,16 +61,19 @@ fn test_cli_status_after_init() {
         .unwrap();
     assert!(init.status.success());
 
+    // Point at a dead port so the result doesn't depend on a daemon running
+    // on the host. Status reports it as not running while exiting cleanly.
     let output = Command::new(cli_bin())
         .arg("status")
         .env("THISCLOUD_CONFIG_DIR", &config_dir)
         .env("THISCLOUD_DATA_DIR", tmp.path().join("data"))
+        .env("THISCLOUD_API_URL", dead_api_url())
         .output()
         .unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("THISCLOUD Cluster Status"));
-    assert!(stdout.contains("thiscloud-cluster"));
+    assert!(stdout.contains("Daemon:   Not running"));
 }
 
 #[test]
@@ -72,12 +84,13 @@ fn test_cli_status_without_config() {
         .arg("status")
         .env("THISCLOUD_CONFIG_DIR", tmp.path().join("nonexistent"))
         .env("THISCLOUD_DATA_DIR", tmp.path().join("data"))
+        .env("THISCLOUD_API_URL", dead_api_url())
         .output()
         .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("No configuration found"));
+    assert!(stdout.contains("Daemon:   Not running"));
 }
 
 /// Minimal HTTP responder that answers a single POST /api/v1/nodes with a 201
