@@ -65,6 +65,10 @@ func (s *Store) load() error {
 		if err != nil {
 			return err
 		}
+		// Self-heal resources created before IDs were assigned: without an id
+		// the web UI cannot render a delete button. Assigning on load makes
+		// legacy entries addressable so they can be deleted from the UI.
+		res = model.AssignID(res)
 		file.Resources = append(file.Resources, res)
 	}
 	s.file = file

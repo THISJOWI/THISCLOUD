@@ -39,6 +39,26 @@ func TestVMAttributesDaemonPayload(t *testing.T) {
 	if m["memory_mb"] != float64(2048) {
 		t.Errorf("memory_mb = %v, want 2048", m["memory_mb"])
 	}
+	// The daemon addresses VMs by id; the orchestrator's id must be forwarded
+	// so DELETE /vms/{id} targets the physical VM, not a 404.
+	if m["id"] != "id-1" {
+		t.Errorf("id = %v, want id-1 (daemon must use the orchestrator id)", m["id"])
+	}
+}
+
+func TestVMAttributesOmitsEmptyID(t *testing.T) {
+	vm := VM{TypeName: "thiscloud_vm", Name: "web1", VCPUs: 2, MemoryMB: 1024, Image: "alma9"}
+	data, err := json.Marshal(vm.Attributes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["id"]; ok {
+		t.Errorf("id must be omitted when empty (daemon generates one): %s", data)
+	}
 }
 
 func TestNetworkAttributesNilDNSNotNull(t *testing.T) {

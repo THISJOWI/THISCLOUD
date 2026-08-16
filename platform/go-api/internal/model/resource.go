@@ -85,6 +85,12 @@ func (r VM) Attributes() map[string]any {
 		"image":     r.Image,
 		"networks":  nonNil(r.Networks),
 	}
+	// Pass the orchestrator's id so the daemon addresses this VM by the same
+	// identifier. Without it the daemon generates its own UUID, the stored
+	// state and the physical VM diverge, and DELETE /vms/{id} 404s.
+	if r.ResourceID != "" {
+		attrs["id"] = r.ResourceID
+	}
 	if r.Node != "" {
 		attrs["node"] = r.Node
 	}
