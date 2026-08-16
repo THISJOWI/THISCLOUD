@@ -12,12 +12,13 @@ all runtime dependencies: cloud-hypervisor, OVN/OVS, DRBD, Linstor and etcd.
 
 ```
 iso/
-  kickstart/thiscloud.ks       AlmaLinux 9 kickstart (packages, partitions, %post)
-  scripts/cross-compile.sh     thiscloudd/thiscloud → x86_64-unknown-linux-gnu
-  scripts/prepare-rpm.sh       cargo-generate-rpm before-build hook (copies binaries)
-  scripts/build-iso.sh         full pipeline: cross → RPM → go-api → web-ui → repo → ISO
-  scripts/fetch-deps.sh        stage cloud-hypervisor + dependency RPMs + systemd units
-  scripts/make-repo.sh         build local RPM repo metadata
+  kickstart/                  (removed — installer is now Calamares-based)
+  calamares/                  custom Calamares installer (see Installer section below)
+  scripts/cross-compile.sh    thiscloudd/thiscloud → x86_64-unknown-linux-gnu
+  scripts/prepare-rpm.sh      cargo-generate-rpm before-build hook (copies binaries)
+  scripts/build-iso.sh        full pipeline: cross → RPM → go-api → web-ui → repo → live ISO
+  scripts/fetch-deps.sh       stage cloud-hypervisor + dependency RPMs + systemd units
+  scripts/make-repo.sh        build local RPM repo metadata
   systemd/thiscloudd.service   Rust daemon systemd unit
   systemd/thiscloud-api.service  Go API server systemd unit
   systemd/thiscloud-webui.service  Next.js web UI systemd unit
@@ -53,15 +54,42 @@ iso/
    nginx, qemu-kvm, and stages systemd service files.
 
 6. **Local repository** — `scripts/build-iso.sh`
-   `createrepo_c iso/repo/thiscloud` (repo referenced from the kickstart via
-   `file:///run/install/repo/thiscloud`).
+   `createrepo_c iso/repo/thiscloud` (repo referenced from the Calamares live
+   flow via a local repo entry).
 
-7. **ISO build** — `scripts/build-iso.sh`
-   Uses `livemedia-creator --make-iso` with the kickstart (or `mkksiso` to inject
-   the kickstart into the base installer ISO). Produces `ThisCloud-0.1.0-x86_64.iso`.
+7. **Installer + ISO build** — `scripts/build-iso.sh` step 8
+   `calamares/scripts/build-live-iso.sh` compiles Calamares + KPMcore from
+   source, packages them as RPMs into `iso/repo`, then assembles the **live**
+   ISO with `livemedia-creator --make-iso --no-virt` using
+   `calamares/live/live.ks`. Produces `ThisCloud-<VERSION>-x86_64.iso`.
 
-8. **Test in a VM** — boot the ISO in qemu/libvirt; kickstart auto-partitions,
-   installs all packages, runs `thiscloud init`, and enables all services.
+8. **Test in a VM** — boot the ISO in qemu/libvirt; it boots a live Xorg +
+   openbox session that auto-launches Calamares, which installs THISCLOUD
+   (partitions via KPMcore, copies filesystem, installs GRUB, runs
+   `thiscloud init`) and enables all services.
+
+## Installer (Calamares)
+
+The ISO is a **live image**: it boots a minimal graphical session
+(Xorg + openbox, root autologin) and auto-launches the Calamares installer
+with THISCLOUD branding. The installer writes to disk (partition via
+KPMcore, filesystem copy via unpackfs, GRUB via the bootloader module) and
+runs a custom **thiscloud** job module that writes `/etc/thiscloud/config.toml`
+and runs `thiscloud init --ip <ip> --role <role>` in the target.
+
+Custom pieces under `iso/calamares/`:
+
+- `branding/thiscloud/` — branding.desc, colors.conf, stylesheet.qss, show.qml, generated PNGs.
+- `modules/thiscloudqml/` — QML view module collecting node role/cluster/IP/interface (compiled into Calamares).
+- `modules/thiscloud/` — Python job module applying config to the target.
+- `settings.conf` — module sequence.
+- `scripts/build-calamares.sh` — compiles Calamares 3.3.14 + KPMcore 24.05.2 (absent from EPEL9) into a staging root.
+- `scripts/build-live-iso.sh` — assembles the live ISO with livemedia-creator.
+- `live/live.ks` — live host kickstart (autologin + Calamares autostart).
+
+Builder requirements (AlmaLinux 9 x86_64): see `install-deps.sh`. The old
+Anaconda kickstart (`kickstart/thiscloud.ks`) and `make-product-img.sh`/
+`remix-iso.sh` path are replaced by this flow.
 
 ## Services on the installed system
 
@@ -120,6 +148,7 @@ thiscloud update --version    # print the installed version
 - `scripts/build-iso.sh` requires `lorax`, `createrepo_c`, `cpio`, `curl`, and `go`.
 - The web-ui build requires `node` and `npm` (or `pnpm`). It uses Next.js standalone
   mode so the built output is self-contained — only Node.js is needed on the target.
-- The `repo --name="thiscloud"` entry in the kickstart points at the repo
-  directory that livemedia-creator copies into the ISO install tree.
+- The `repo --name="thiscloud-local"` entry in `calamares/live/live.ks` points
+  at the host-visible THISCLOUD repo (`file:///data/thiscloud-repo`) that
+  `build-live-iso.sh` syncs from `iso/repo` before running livemedia-creator.
 - Firewall ports opened: 80 (HTTP/nginx), 8080 (daemon), 8081 (API), 2379-2380 (etcd).
