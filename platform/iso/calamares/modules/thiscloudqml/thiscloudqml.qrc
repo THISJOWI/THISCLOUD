@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>thiscloudqml.qml</file>
+    </qresource>
+</RCC>

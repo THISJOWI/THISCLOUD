@@ -354,18 +354,12 @@ class TestBrandingDesc(unittest.TestCase):
             self.assertIn(key, text, f"missing key {key}")
 
     def test_required_pngs_referenced(self):
-        # Calamares images: keys are productBanner/productIcon/productLogo/
-        # productWallpaper/productWelcome; SidebarBackground is a color, so
-        # sidebar-bg.png is generated but never referenced by branding.desc.
         with open(os.path.join(BRANDING, "branding.desc")) as f:
             text = f.read()
         for img in ("productIcon.png", "productLogo.png", "productWelcome.png",
-                    "wallpaper.png"):
+                    "wallpaper.png", "sidebar-bg.png"):
             self.assertIn(img, text)
             self.assertTrue(os.path.isfile(os.path.join(BRANDING, img)), img)
-
-    def test_sidebar_bg_exists(self):
-        self.assertTrue(os.path.isfile(os.path.join(BRANDING, "sidebar-bg.png")))
 
 
 if __name__ == "__main__":
@@ -670,8 +664,15 @@ class TestThisCloudQml(unittest.TestCase):
     def test_qml_has_form_fields(self):
         qml = open(os.path.join(MOD, "thiscloudqml.qml")).read()
         for tok in ("ComboBox", "TextField", "nodeRole", "clusterName",
-                    "nodeIp", "interface", "onNextRequested"):
+                    "nodeIp", "interface", "config"):
             self.assertIn(tok, qml)
+
+    def test_qml_has_lifecycle_hooks(self):
+        # Calamares QML view steps expose onActivate()/onLeave(); the Next
+        # button is owned by ViewManager, so no onNextRequested is needed.
+        qml = open(os.path.join(MOD, "thiscloudqml.qml")).read()
+        self.assertIn("onActivate", qml)
+        self.assertIn("onLeave", qml)
 
     def test_conf_maps_module(self):
         conf = open(os.path.join(MOD, "thiscloudqml.conf")).read()
@@ -945,6 +946,9 @@ Item {
 
         Item { Layout.fillHeight: true }
     }
+
+    function onActivate() {}
+    function onLeave() {}
 }
 ```
 
@@ -2002,6 +2006,7 @@ git commit -m "docs(iso): add Calamares installer README"
 - `install-deps.sh` additions now include `createrepo_c rpm-build` (needed for Task 7 RPM packaging).
 - Task 1 runtime fix: `write_png` must pass `(x, y, width, height)` to the pixel closure; `gradient`/`solid`/`icon_pix`/`logo_pix`/`slide_pix` all take `(x, y, w, h)`. (Original plan had 2-arg calls → TypeError.)
 - Task 2 schema fix: Calamares `images:` accepts only `productBanner/productIcon/productLogo/productWallpaper/productWelcome`; `SidebarBackground` in `style:` is a color, not an image file. `sidebar-bg.png` is generated but never referenced by `branding.desc`. Test split into `test_required_pngs_referenced` (only referenced PNGs) + `test_sidebar_bg_exists`.
+- Task 4 QML fix: Calamares QML view steps have **no** `onNextRequested` — the Next button belongs to ViewManager; the QML binds to the `config` context property (from `getConfig()`) and exposes `function onActivate()/onLeave()` lifecycle hooks. Plan test replaced `onNextRequested` with `config` + added `test_qml_has_lifecycle_hooks`; QML gained the two lifecycle functions.
 
 **4. Type consistency:** `thiscloudRole/thiscloudClusterName/thiscloudNodeIp/thiscloudInterface` names identical across Task 4 (write in C++), Task 5 (read in Python), Task 6 (no direct ref), Task 12 (docs). `build_init_args` returns `["/usr/bin/thiscloud", "init", ...]` matching the CLI's `thiscloud init --ip --role` in Task 5's usage. PNG filenames consistent across Tasks 1-2. Module names (`thiscloudqml`, `thiscloud`) consistent across Tasks 4-6.
 
