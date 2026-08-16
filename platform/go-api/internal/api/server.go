@@ -34,6 +34,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/resources", s.createResource)
 	mux.HandleFunc("GET /api/v1/resources/{type}", s.listByType)
 	mux.HandleFunc("POST /api/v1/resources/{type}", s.createByType)
+	mux.HandleFunc("DELETE /api/v1/resources/{type}", s.deleteByType)
 	mux.HandleFunc("GET /api/v1/resources/{type}/{id}", s.getResource)
 	mux.HandleFunc("PUT /api/v1/resources/{type}/{id}", s.updateResource)
 	mux.HandleFunc("DELETE /api/v1/resources/{type}/{id}", s.deleteResource)
@@ -116,6 +117,14 @@ func (s *Server) createResource(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createByType(w http.ResponseWriter, r *http.Request) {
 	s.create(w, r, r.PathValue("type"))
+}
+
+// deleteByType rejects deletes that don't address a concrete resource id.
+// Without this route, Go's ServeMux would answer id-less deletes with a bare
+// 405 (only GET/POST are registered for /resources/{type}), which web UI
+// clients surface as a confusing "Method Not Allowed".
+func (s *Server) deleteByType(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusBadRequest, errors.New("missing required field: id"))
 }
 
 func (s *Server) create(w http.ResponseWriter, r *http.Request, typeFilter string) {

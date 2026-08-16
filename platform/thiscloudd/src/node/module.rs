@@ -171,11 +171,27 @@ impl NodeModule {
             .ok_or_else(|| anyhow::anyhow!("no suitable node for scheduling (resources or affinity)"))
     }
 
-    /// Reserve capacity on a node when a VM is placed on it.
+    /// Resolve a node reference (id or name) to its canonical node id.
+    /// Callers may specify a node by either its `id` or its `name`.
+    pub async fn resolve_id(&self, id_or_name: &str) -> anyhow::Result<String> {
+        if let Some(n) = self.store.get(id_or_name).await? {
+            return Ok(n.id);
+        }
+        let nodes = self.store.list().await?;
+        nodes
+            .into_iter()
+            .find(|n| n.name == id_or_name)
+            .map(|n| n.id)
+            .ok_or_else(|| anyhow::anyhow!("node '{}' not found (by id or name)", id_or_name))
+    }
+
+    /// Reserve capacity on a node when a VM is placed on it. The node may be
+    /// referenced by its id or its name.
     pub async fn reserve(&mut self, node_id: &str, cpus: u32, memory_mb: u32) -> anyhow::Result<()> {
+        let node_id = self.resolve_id(node_id).await?;
         let mut node = self
             .store
-            .get(node_id)
+            .get(&node_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("node {} not found", node_id))?;
         let state = Self::effective_state(&node);
@@ -197,9 +213,14 @@ impl NodeModule {
         Ok(())
     }
 
-    /// Free capacity on a node when a VM placed on it is deleted.
+    /// Free capacity on a node when a VM placed on it is deleted. The node may be
+    /// referenced by its id or its name.
     pub async fn release(&mut self, node_id: &str, cpus: u32, memory_mb: u32) -> anyhow::Result<()> {
-        let mut node = match self.store.get(node_id).await? {
+        let node_id = match self.resolve_id(node_id).await {
+            Ok(id) => id,
+            Err(_) => return Ok(()), // unknown node: nothing to release
+        };
+        let mut node = match self.store.get(&node_id).await? {
             Some(n) => n,
             None => return Ok(()),
         };

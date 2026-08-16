@@ -137,3 +137,68 @@ async fn test_no_suitable_node_errors() {
     let err = module.best_fit(2, 4096, &[], &[]).await.unwrap_err();
     assert!(err.to_string().contains("no suitable node"));
 }
+
+#[tokio::test]
+async fn test_resolve_id_by_id_or_name() {
+    let mut module = new_module();
+    // id "master-1", name "master" (mirrors seed_local_master's split).
+    let master = module
+        .register(Node {
+            id: "master-1".to_string(),
+            name: "master".to_string(),
+            role: NodeRole::Master,
+            address: "127.0.0.1:8080".to_string(),
+            hostname: "localhost".to_string(),
+            cpus_total: 8,
+            cpus_used: 0,
+            memory_total_mb: 16384,
+            memory_used_mb: 0,
+            vms: 0,
+            state: NodeState::Online,
+            last_seen_secs: now(),
+            ttl_secs: 30,
+            labels: Vec::new(),
+        })
+        .await
+        .unwrap();
+
+    // Resolving by the id returns the id unchanged.
+    assert_eq!(module.resolve_id(&master.id).await.unwrap(), "master-1");
+    // Resolving by the name resolves to the node id.
+    assert_eq!(module.resolve_id("master").await.unwrap(), "master-1");
+    // Unknown references error.
+    assert!(module.resolve_id("does-not-exist").await.is_err());
+}
+
+#[tokio::test]
+async fn test_reserve_accepts_node_name() {
+    let mut module = new_module();
+    let node = module
+        .register(Node {
+            id: "master-1".to_string(),
+            name: "master".to_string(),
+            role: NodeRole::Master,
+            address: "127.0.0.1:8080".to_string(),
+            hostname: "localhost".to_string(),
+            cpus_total: 8,
+            cpus_used: 0,
+            memory_total_mb: 16384,
+            memory_used_mb: 0,
+            vms: 0,
+            state: NodeState::Online,
+            last_seen_secs: now(),
+            ttl_secs: 30,
+            labels: Vec::new(),
+        })
+        .await
+        .unwrap();
+    let _ = node;
+
+    // Reserve capacity by name (this used to fail: looked up by id only).
+    module.reserve("master", 2, 2048).await.unwrap();
+
+    let n = module.get("master-1").await.unwrap().unwrap();
+    assert_eq!(n.cpus_used, 2);
+    assert_eq!(n.memory_used_mb, 2048);
+    assert_eq!(n.vms, 1);
+}

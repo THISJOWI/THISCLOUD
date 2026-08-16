@@ -124,6 +124,11 @@ export async function deleteResource(
   type: string,
   id: string
 ): Promise<void> {
+  if (!id) {
+    throw new Error(
+      `Cannot delete ${type}: resource has no id (corrupt or legacy state)`
+    );
+  }
   const res = await apiFetch(`/api/v1/resources/${type}/${id}`, {
     method: "DELETE",
   });

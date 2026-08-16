@@ -153,6 +153,20 @@ func TestDeleteResource(t *testing.T) {
 	}
 }
 
+func TestDeleteWithoutIDReturns400(t *testing.T) {
+	s := newTestServer(t)
+	// A delete that doesn't address a concrete resource id used to surface as
+	// Go's bare 405 (only GET/POST registered for /resources/{type}); it should
+	// now return a clear 400 so clients can diagnose the missing id.
+	rec := doJSON(t, s, http.MethodDelete, "/api/v1/resources/thiscloud_vm", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "id") {
+		t.Fatalf("want error mentioning missing id, got: %s", rec.Body.String())
+	}
+}
+
 func TestHealth(t *testing.T) {
 	s := newTestServer(t)
 	rec := doJSON(t, s, http.MethodGet, "/healthz", "")

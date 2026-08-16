@@ -165,14 +165,20 @@ export function ResourceTable({
                 ))}
                 {hasActions && (
                   <td style={{ textAlign: "center" }}>
-                    <button
-                      onClick={() => onDelete!(String(r.type), String(r.id))}
-                      className="btn btn-danger btn-ghost"
-                      title={`Delete ${r.type}:${r.id}`}
-                      style={{ fontSize: 11, padding: "2px 6px" }}
-                    >
-                      Delete
-                    </button>
+                    {r.id ? (
+                      <button
+                        onClick={() => onDelete!(String(r.type), String(r.id))}
+                        className="btn btn-danger btn-ghost"
+                        title={`Delete ${r.type}:${r.id}`}
+                        style={{ fontSize: 11, padding: "2px 6px" }}
+                      >
+                        Delete
+                      </button>
+                    ) : (
+                      <span className="text-muted" style={{ fontSize: 11 }} title="Resource has no id (corrupt state)">
+                        —
+                      </span>
+                    )}
                   </td>
                 )}
               </tr>

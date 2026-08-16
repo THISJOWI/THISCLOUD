@@ -108,8 +108,10 @@ impl ComputeModule {
                 .await?;
             vm.node = id;
         } else {
-            // Explicit node: validate online + capacity, then reserve.
-            nodes.reserve(&vm.node, vm.cpus, vm.memory_mb).await?;
+            // Explicit node: accept a node name or id, validate online + capacity, then reserve.
+            let node_id = nodes.resolve_id(&vm.node).await?;
+            nodes.reserve(&node_id, vm.cpus, vm.memory_mb).await?;
+            vm.node = node_id;
         }
         Ok(())
     }
@@ -393,6 +395,14 @@ impl ComputeModule {
             anyhow::bail!("target_node is required for migration");
         }
         let mut vm = self.get_vm(tenant_id, id).await?;
+        // Accept a node name or id as the migration target.
+        let target_node = match self.nodes.clone() {
+            Some(nodes_arc) => {
+                let nodes = nodes_arc.lock().await;
+                nodes.resolve_id(target_node).await?
+            }
+            None => target_node.to_string(),
+        };
         if vm.node == target_node {
             anyhow::bail!("VM {} is already placed on node {}", vm.name, target_node);
         }
@@ -402,11 +412,11 @@ impl ComputeModule {
             Some(nodes_arc) => {
                 let mut nodes = nodes_arc.lock().await;
                 // Reserve capacity on the destination first (validates online).
-                nodes.reserve(target_node, vm.cpus, vm.memory_mb).await?;
+                nodes.reserve(&target_node, vm.cpus, vm.memory_mb).await?;
                 // Live-migrate memory state when running; placement-only otherwise.
                 if vm.status == VmStatus::Running {
-                    if let Err(e) = self.backend.migrate(&vm, target_node).await {
-                        nodes.release(target_node, vm.cpus, vm.memory_mb).await?;
+                    if let Err(e) = self.backend.migrate(&vm, &target_node).await {
+                        nodes.release(&target_node, vm.cpus, vm.memory_mb).await?;
                         return Err(e);
                     }
                 }
@@ -417,12 +427,12 @@ impl ComputeModule {
             None => {
                 // No node registry wired (dev): just move placement.
                 if vm.status == VmStatus::Running {
-                    self.backend.migrate(&vm, target_node).await?;
+                    self.backend.migrate(&vm, &target_node).await?;
                 }
             }
         }
 
-        vm.node = target_node.to_string();
+        vm.node = target_node;
         vm.migrations += 1;
         self.store.put(tenant_id, &vm).await?;
         tracing::info!(
