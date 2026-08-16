@@ -1,0 +1,6 @@
+# Module metadata for the THISCLOUD job module.
+---
+type: "job"
+name: "thiscloud"
+interface: "python"
+script: "main.py"

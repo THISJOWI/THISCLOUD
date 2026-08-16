@@ -1088,8 +1088,9 @@ def is_valid_role(value):
 
 
 def sanitize_cluster_name(value):
-    """Lowercase, keep [a-z0-9-], drop everything else."""
+    """Lowercase; whitespace becomes single hyphens, other junk is dropped."""
     value = value.strip().lower()
+    value = re.sub(r"\s+", "-", value)
     return re.sub(r"[^a-z0-9-]+", "", value)
 
 
@@ -2007,6 +2008,7 @@ git commit -m "docs(iso): add Calamares installer README"
 - Task 1 runtime fix: `write_png` must pass `(x, y, width, height)` to the pixel closure; `gradient`/`solid`/`icon_pix`/`logo_pix`/`slide_pix` all take `(x, y, w, h)`. (Original plan had 2-arg calls → TypeError.)
 - Task 2 schema fix: Calamares `images:` accepts only `productBanner/productIcon/productLogo/productWallpaper/productWelcome`; `SidebarBackground` in `style:` is a color, not an image file. `sidebar-bg.png` is generated but never referenced by `branding.desc`. Test split into `test_required_pngs_referenced` (only referenced PNGs) + `test_sidebar_bg_exists`.
 - Task 4 QML fix: Calamares QML view steps have **no** `onNextRequested` — the Next button belongs to ViewManager; the QML binds to the `config` context property (from `getConfig()`) and exposes `function onActivate()/onLeave()` lifecycle hooks. Plan test replaced `onNextRequested` with `config` + added `test_qml_has_lifecycle_hooks`; QML gained the two lifecycle functions.
+- Task 5 fix: `sanitize_cluster_name("  My Cluster  ")` must yield `"my-cluster"` (whitespace → single hyphen) while `"a.b"` → `"ab"` (dots stripped). Original single-regex impl produced `"mycluster"`. Now two-step: `re.sub(r"\s+", "-")` then strip non-`[a-z0-9-]`.
 
 **4. Type consistency:** `thiscloudRole/thiscloudClusterName/thiscloudNodeIp/thiscloudInterface` names identical across Task 4 (write in C++), Task 5 (read in Python), Task 6 (no direct ref), Task 12 (docs). `build_init_args` returns `["/usr/bin/thiscloud", "init", ...]` matching the CLI's `thiscloud init --ip --role` in Task 5's usage. PNG filenames consistent across Tasks 1-2. Module names (`thiscloudqml`, `thiscloud`) consistent across Tasks 4-6.
 
