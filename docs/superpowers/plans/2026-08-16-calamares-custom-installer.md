@@ -1,6 +1,6 @@
 # Custom Calamares Installer for THISCLOUD Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the Anaconda installer in the THISCLOUD AlmaLinux 9 ISO with a Calamares-based installer (compiled from source, since Calamares/KPMcore are absent from EPEL9) that runs from a booted live environment, carries full THISCLOUD branding, and adds a custom "THISCLOUD config" step (node role, cluster name, node IP, network interface).
 
@@ -82,7 +82,7 @@ Files modified: `platform/iso/scripts/remix-iso.sh`, `platform/iso/scripts/build
   - Exit 0 on success. CLI: `python3 make-calamares-branding.py [OUTPUT_DIR]` (default = `branding/thiscloud`).
 - Later tasks read these paths as the branding images referenced by `branding.desc`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 #!/usr/bin/env python3
@@ -164,12 +164,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 platform/iso/calamares/tests/test_branding.py`
 Expected: FAIL — `FileNotFoundError` / `returncode != 0` (script missing).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 ```python
 #!/usr/bin/env python3
@@ -293,17 +293,17 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python3 platform/iso/calamares/tests/test_branding.py`
 Expected: `OK` (all tests pass).
 
-- [ ] **Step 5: Run the generator into the branding dir and eyeball output**
+- [x] **Step 5: Run the generator into the branding dir and eyeball output**
 
 Run: `python3 platform/iso/calamares/scripts/make-calamares-branding.py`
 Expected: prints `wrote ... files to <repo>/platform/iso/calamares/branding/thiscloud` and lists `slides/`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add platform/iso/calamares/scripts/make-calamares-branding.py \
@@ -327,7 +327,7 @@ git commit -m "feat(iso): generate Calamares branding pixmaps for THISCLOUD"
 - Consumes: pixmap paths from Task 1 (`productIcon.png`, `productLogo.png`, `productWelcome.png`, `wallpaper.png`).
 - Produces: YAML `branding.desc` (component `thiscloud`), `colors.conf`, `stylesheet.qss`. Later, `build-calamares.sh` installs these to the live rootfs at `/etc/calamares/branding/thiscloud/`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 #!/usr/bin/env python3
@@ -366,12 +366,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 platform/iso/calamares/tests/test_branding_desc.py`
 Expected: FAIL — `branding.desc` missing.
 
-- [ ] **Step 3: Write branding.desc**
+- [x] **Step 3: Write branding.desc**
 
 ```yaml
 # THISCLOUD product branding for Calamares.
@@ -430,7 +430,7 @@ uploadServer:
   type: "none"
 ```
 
-- [ ] **Step 4: Write colors.conf**
+- [x] **Step 4: Write colors.conf**
 
 ```conf
 # THISCLOUD color scheme for the Calamares QML widgets.
@@ -452,7 +452,7 @@ highlight: "#3b82f6"
 highlightedText: "#0f1115"
 ```
 
-- [ ] **Step 5: Write stylesheet.qss**
+- [x] **Step 5: Write stylesheet.qss**
 
 ```css
 /* THISCLOUD stylesheet for Calamares Qt widgets. */
@@ -470,12 +470,12 @@ QProgressBar { background-color: #171a21; border: 1px solid #33363d; border-radi
 QProgressBar::chunk { background-color: #3b82f6; }
 ```
 
-- [ ] **Step 6: Run test to verify it passes**
+- [x] **Step 6: Run test to verify it passes**
 
 Run: `python3 platform/iso/calamares/tests/test_branding_desc.py`
 Expected: `OK`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add platform/iso/calamares/branding/thiscloud \
@@ -496,7 +496,7 @@ git commit -m "feat(iso): add THISCLOUD Calamares branding desc, colors, stylesh
 - Consumes: `slides/slide-1..4.png` from Task 1 (referenced inside show.qml via branding dir resolution).
 - Produces: `show.qml` loaded by Calamares slideshow during the exec phase (API 2: `onActivate`/`onLeave`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 #!/usr/bin/env python3
@@ -532,12 +532,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 platform/iso/calamares/tests/test_slideshow_qml.py`
 Expected: FAIL — `show.qml` missing.
 
-- [ ] **Step 3: Write show.qml**
+- [x] **Step 3: Write show.qml**
 
 ```qml
 /* THISCLOUD slideshow for Calamares (slideshowAPI 2). */
@@ -598,12 +598,12 @@ Item {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 platform/iso/calamares/tests/test_slideshow_qml.py`
 Expected: `OK`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add platform/iso/calamares/branding/thiscloud/show.qml \
@@ -632,7 +632,7 @@ git commit -m "feat(iso): add THISCLOUD Calamares slideshow QML"
   - On `next()`/onLeave: writes GlobalStorage keys `thiscloudRole`, `thiscloudClusterName`, `thiscloudNodeIp`, `thiscloudInterface`. Read by Task 5's `thiscloud` job module.
   - This directory is copied into the Calamares source tree by `build-calamares.sh` under `src/modules/thiscloudqml/` before cmake.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 #!/usr/bin/env python3
@@ -683,12 +683,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 platform/iso/calamares/tests/test_thiscloudqml.py`
 Expected: FAIL — files missing.
 
-- [ ] **Step 3: Write CMakeLists.txt**
+- [x] **Step 3: Write CMakeLists.txt**
 
 ```cmake
 # THISCLOUD custom view module. This dir is copied into the Calamares
@@ -709,7 +709,7 @@ calamares_add_plugin(thiscloudqml
 )
 ```
 
-- [ ] **Step 4: Write thiscloudqml.qrc**
+- [x] **Step 4: Write thiscloudqml.qrc**
 
 ```xml
 <RCC>
@@ -719,7 +719,7 @@ calamares_add_plugin(thiscloudqml
 </RCC>
 ```
 
-- [ ] **Step 5: Write ThisCloudViewStep.h**
+- [x] **Step 5: Write ThisCloudViewStep.h**
 
 ```cpp
 /* THISCLOUD install-config view step. */
@@ -790,7 +790,7 @@ CALAMARES_PLUGIN_FACTORY_DECLARATION( ThisCloudViewStepFactory )
 #endif
 ```
 
-- [ ] **Step 6: Write ThisCloudViewStep.cpp**
+- [x] **Step 6: Write ThisCloudViewStep.cpp**
 
 ```cpp
 /* THISCLOUD install-config view step. */
@@ -852,7 +852,7 @@ ThisCloudViewStep::getConfig()
 CALAMARES_PLUGIN_FACTORY_DEFINITION( ThisCloudViewStepFactory, registerPlugin< ThisCloudViewStep >(); )
 ```
 
-- [ ] **Step 7: Write thiscloudqml.qml**
+- [x] **Step 7: Write thiscloudqml.qml**
 
 ```qml
 /* THISCLOUD node configuration form shown as a Calamares view step. */
@@ -952,7 +952,7 @@ Item {
 }
 ```
 
-- [ ] **Step 8: Write thiscloudqml.conf**
+- [x] **Step 8: Write thiscloudqml.conf**
 
 ```yaml
 # Config for the thiscloudqml view module (instance name = module name).
@@ -962,12 +962,12 @@ qmlSearch: both
 qmlFilename: "thiscloudqml.qml"
 ```
 
-- [ ] **Step 9: Run test to verify it passes**
+- [x] **Step 9: Run test to verify it passes**
 
 Run: `python3 platform/iso/calamares/tests/test_thiscloudqml.py`
 Expected: `OK`.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add platform/iso/calamares/modules/thiscloudqml \
@@ -995,7 +995,7 @@ git commit -m "feat(iso): add THISCLOUD config QML view module for Calamares"
   - Enables systemd units per role in the target.
   - `run()` returns `None` on success or `(str, str)` error tuple (Calamares contract, see dummypython).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 #!/usr/bin/env python3
@@ -1058,12 +1058,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python3 platform/iso/calamares/tests/test_thiscloud_logic.py`
 Expected: FAIL — `ModuleNotFoundError: thiscloud_logic`.
 
-- [ ] **Step 3: Write thiscloud_logic.py**
+- [x] **Step 3: Write thiscloud_logic.py**
 
 ```python
 """Pure logic for the THISCLOUD Calamares job module (no libcalamares).
@@ -1129,7 +1129,7 @@ def build_init_args(ip, role):
     return ["/usr/bin/thiscloud", "init", "--ip", ip.strip(), "--role", role.strip()]
 ```
 
-- [ ] **Step 4: Write main.py**
+- [x] **Step 4: Write main.py**
 
 ```python
 #!/usr/bin/env python3
@@ -1187,7 +1187,7 @@ def run():
     return None
 ```
 
-- [ ] **Step 5: Write module.desc**
+- [x] **Step 5: Write module.desc**
 
 ```yaml
 # Module metadata for the THISCLOUD job module.
@@ -1198,7 +1198,7 @@ interface: "python"
 script: "main.py"
 ```
 
-- [ ] **Step 6: Write thiscloud.conf**
+- [x] **Step 6: Write thiscloud.conf**
 
 ```yaml
 # THISCLOUD job module configuration.
@@ -1207,17 +1207,17 @@ script: "main.py"
 # No module-specific options required.
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [x] **Step 7: Run tests to verify they pass**
 
 Run: `python3 platform/iso/calamares/tests/test_thiscloud_logic.py`
 Expected: `OK`.
 
-- [ ] **Step 8: Syntax-check the wrapper (no Calamares runtime on macOS)**
+- [x] **Step 8: Syntax-check the wrapper (no Calamares runtime on macOS)**
 
 Run: `python3 -m py_compile platform/iso/calamares/modules/thiscloud/main.py`
 Expected: exit 0, creates `__pycache__`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add platform/iso/calamares/modules/thiscloud \
@@ -1238,7 +1238,7 @@ git commit -m "feat(iso): add THISCLOUD Calamares python job module"
 - Consumes: module names from Tasks 4-5 plus stock Calamares modules (`partition`, `mount`, `unpackfs`, `fstab`, `locale`, `keyboard`, `localecfg`, `users`, `networkcfg`, `hwclock`, `services-systemd`, `initramfs`, `bootloader`, `umount`, `welcome`, `timezone`, `summary`, `finished`).
 - Produces: the Calamares global config installed to `/etc/calamares/settings.conf` on the live system.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 #!/usr/bin/env python3
@@ -1276,12 +1276,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 platform/iso/calamares/tests/test_settings_conf.py`
 Expected: FAIL — `settings.conf` missing.
 
-- [ ] **Step 3: Write settings.conf**
+- [x] **Step 3: Write settings.conf**
 
 ```yaml
 # THISCLOUD Calamares global configuration.
@@ -1325,12 +1325,12 @@ sequence:
 branding: thiscloud
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 platform/iso/calamares/tests/test_settings_conf.py`
 Expected: `OK`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add platform/iso/calamares/settings.conf \
@@ -1353,7 +1353,7 @@ git commit -m "feat(iso): add Calamares settings.conf with THISCLOUD module sequ
   - EPEL9 + AlmaLinux base repos (builder must run `install-deps.sh` additions first — Task 11).
 - Produces: `calamares` binary + plugins + `python3` job runner installed under a staging root (`/tmp/live-root`), packaged into RPMs in `iso/repo` that `live.ks` (Task 8) pulls into the live system via its local repo. Prints `DONE` on success.
 
-- [ ] **Step 1: Write the script (builder-only; verify with bash -n locally)**
+- [x] **Step 1: Write the script (builder-only; verify with bash -n locally)**
 
 ```bash
 #!/usr/bin/env bash
@@ -1498,12 +1498,12 @@ fi
 echo "DONE"
 ```
 
-- [ ] **Step 2: Verify script syntax locally**
+- [x] **Step 2: Verify script syntax locally**
 
 Run: `bash -n platform/iso/calamares/scripts/build-calamares.sh`
 Expected: exit 0 (no output).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 chmod +x platform/iso/calamares/scripts/build-calamares.sh
@@ -1525,7 +1525,7 @@ git commit -m "feat(iso): add Calamares+KPMcore source build script for EL9"
 - Consumes: Calamares RPMs produced by Task 7 (staged under the local repo `iso/repo`), thiscloud branding.
 - Produces: a bootable live ISO (built by `livemedia-creator --make-iso --no-virt` in Task 9) that boots Xorg → openbox → autologin → Calamares autostart.
 
-- [ ] **Step 1: Write live.ks**
+- [x] **Step 1: Write live.ks**
 
 ```
 # THISCLOUD live installer kickstart.
@@ -1630,7 +1630,7 @@ echo "==> live post complete"
 %end
 ```
 
-- [ ] **Step 2: Write autostart/calamares.desktop**
+- [x] **Step 2: Write autostart/calamares.desktop**
 
 ```desktop
 [Desktop Entry]
@@ -1643,7 +1643,7 @@ Categories=System;
 X-GNOME-Autostart-enabled=true
 ```
 
-- [ ] **Step 3: Write autostart/xorg-autologin.conf**
+- [x] **Step 3: Write autostart/xorg-autologin.conf**
 
 ```
 # Placeholder documentation file for the live autologin design.
@@ -1651,12 +1651,12 @@ X-GNOME-Autostart-enabled=true
 # This file documents intent and is shipped for traceability only.
 ```
 
-- [ ] **Step 4: Verify syntax locally (kickstart not parseable on macOS; structural check)**
+- [x] **Step 4: Verify syntax locally (kickstart not parseable on macOS; structural check)**
 
 Run: `grep -q "livemedia" platform/iso/calamares/live/live.ks || echo "no livemedia ref (expected — builder uses livemedia-creator)"`
 Expected: prints the note; exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add platform/iso/calamares/live
@@ -1677,7 +1677,7 @@ git commit -m "feat(iso): add live environment kickstart hosting Calamares"
 - Consumes: `live.ks` (Task 8), staged Calamares rootfs (Task 7), `iso/repo/` (existing THISCLOUD artifacts from build-iso.sh steps [1-4]).
 - Produces: `ThisCloud-<VERSION>-x86_64.iso` live image via `livemedia-creator --make-iso`.
 
-- [ ] **Step 1: Write build-live-iso.sh**
+- [x] **Step 1: Write build-live-iso.sh**
 
 ```bash
 #!/usr/bin/env bash
@@ -1734,12 +1734,12 @@ echo "==> Done"
 ls -lh "$OUT"/*.iso
 ```
 
-- [ ] **Step 2: Verify syntax locally**
+- [x] **Step 2: Verify syntax locally**
 
 Run: `bash -n platform/iso/calamares/scripts/build-live-iso.sh`
 Expected: exit 0.
 
-- [ ] **Step 3: Modify fetch-deps.sh — append a Calamares source fetch**
+- [x] **Step 3: Modify fetch-deps.sh — append a Calamares source fetch**
 
 ```bash
 # ── Calamares + KPMcore source tarballs (for build-calamares.sh) ────
@@ -1757,7 +1757,7 @@ fi
 
 *(Insert before the final "done"/summary echo of `fetch-deps.sh`; adjust `$REPO` to match that file's existing variable.)*
 
-- [ ] **Step 4: Modify build-iso.sh — swap steps [8]/[9] for the live path**
+- [x] **Step 4: Modify build-iso.sh — swap steps [8]/[9] for the live path**
 
 Replace the block:
 
@@ -1783,7 +1783,7 @@ ALMAISO="$ALMAISO" OUT="$OUT" VERSION="$VERSION" \
   bash iso/calamares/scripts/build-live-iso.sh
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add platform/iso/calamares/scripts/build-live-iso.sh \
@@ -1804,7 +1804,7 @@ git commit -m "feat(iso): route ISO build through Calamares live installer"
 - Consumes: nothing new.
 - Produces: builder has packages to compile Calamares/KPMcore (Task 7) and run livemedia-creator (Task 9).
 
-- [ ] **Step 1: Append the Calamares toolchain block to install-deps.sh**
+- [x] **Step 1: Append the Calamares toolchain block to install-deps.sh**
 
 ```bash
 # ── Calamares builder deps (compile from source for EL9) ─────────────
@@ -1820,12 +1820,12 @@ dnf install -y \
   || echo "WARNING: some Calamares deps unavailable from current repos (EPEL9 may be needed)"
 ```
 
-- [ ] **Step 2: Verify syntax locally**
+- [x] **Step 2: Verify syntax locally**
 
 Run: `bash -n platform/iso/scripts/install-deps.sh`
 Expected: exit 0.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add platform/iso/scripts/install-deps.sh
@@ -1845,12 +1845,12 @@ git commit -m "chore(iso): add Calamares build deps to install-deps"
 - Consumes: everything above.
 - Produces: repo docs reflect the Calamares live flow; no stale Anaconda references.
 
-- [ ] **Step 1: Delete the obsolete kickstart**
+- [x] **Step 1: Delete the obsolete kickstart**
 
 Run: `git rm platform/iso/kickstart/thiscloud.ks`
 Expected: file removed.
 
-- [ ] **Step 2: Document the new flow in README.md**
+- [x] **Step 2: Document the new flow in README.md**
 
 Append/replace the "How it works" section:
 
@@ -1878,7 +1878,7 @@ Anaconda kickstart (`kickstart/thiscloud.ks`) and `make-product-img.sh`/
 `remix-iso.sh` path are replaced by this flow.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A platform/iso
@@ -1897,7 +1897,7 @@ git commit -m "docs(iso): document Calamares installer flow; drop Anaconda kicks
 - Consumes: all tasks.
 - Produces: operational doc for anyone running the builder.
 
-- [ ] **Step 1: Write the README**
+- [x] **Step 1: Write the README**
 
 ```markdown
 # THISCLOUD Calamares installer
@@ -1956,7 +1956,7 @@ python3 platform/iso/calamares/tests/test_settings_conf.py
 | `thiscloudInterface` | `eth0` |
 ```
 
-- [ ] **Step 2: Run the full local test suite**
+- [x] **Step 2: Run the full local test suite**
 
 Run:
 ```sh
@@ -1965,7 +1965,7 @@ python3 test_branding.py && python3 test_branding_desc.py && python3 test_slides
 ```
 Expected: all `OK`.
 
-- [ ] **Step 3: Run syntax checks on all new bash scripts**
+- [x] **Step 3: Run syntax checks on all new bash scripts**
 
 Run:
 ```sh
@@ -1977,7 +1977,7 @@ bash -n platform/iso/scripts/build-iso.sh
 ```
 Expected: exit 0 for each.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add platform/iso/calamares/README.md
