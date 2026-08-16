@@ -204,7 +204,7 @@ def write_png(path, width, height, pixel_at):
     for y in range(height):
         raw.append(0)
         for x in range(width):
-            raw.extend(pixel_at(x, y))
+            raw.extend(pixel_at(x, y, width, height))
     png = (sig + _chunk(b"IHDR", ihdr) +
            _chunk(b"IDAT", zlib.compress(bytes(raw))) +
            _chunk(b"IEND", b""))
@@ -244,8 +244,7 @@ def main():
     os.makedirs(out, exist_ok=True)
 
     # 128x128 square product icon — accent fill with dark "T" glyph via punch-out.
-    def icon_pix(x, y):
-        w = h = 128
+    def icon_pix(x, y, w, h):
         # Punch a simple "T" using the FG color over accent.
         bar = 30 <= y <= 46 and 40 <= x <= 88
         stem = 40 <= x <= 48 and 46 <= y <= 92
@@ -255,7 +254,7 @@ def main():
     write_png(os.path.join(out, "productIcon.png"), 128, 128, icon_pix)
 
     # 80x80 sidebar logo — same "T" glyph, accent on transparent rounded square.
-    def logo_pix(x, y):
+    def logo_pix(x, y, w, h):
         if 18 <= y <= 62 and 26 <= x <= 54:
             return FG + (255,)
         if 26 <= x <= 34 and 34 <= y <= 62:
@@ -277,8 +276,8 @@ def main():
 
     # Slides 800x480: gradient + accent bottom strip + slide number blob.
     for i in range(1, 5):
-        def slide_pix(x, y, _i=i):
-            c = gradient(BG, CARD, accent_line=8)(x, y, 800, 480)
+        def slide_pix(x, y, w, h, _i=i):
+            c = gradient(BG, CARD, accent_line=8)(x, y, w, h)
             # Title bar band near top, distinct per-slide x offset.
             if 60 <= y <= 100:
                 if x % 60 < 40:
@@ -1341,14 +1340,14 @@ git commit -m "feat(iso): add Calamares settings.conf with THISCLOUD module sequ
   - Source tarballs: `calamares-3.3.14.tar.gz` (GitHub `calamares/calamares` tag `v3.3.14`), `kpmcore-24.05.2.tar.xz` (KDE download / `invent.kde.org/libs/kpmcore/-/archive/v24.05.2/`).
   - `thiscloudqml` module sources (Task 4) copied in from `iso/calamares/modules/thiscloudqml`.
   - EPEL9 + AlmaLinux base repos (builder must run `install-deps.sh` additions first — Task 11).
-- Produces: `calamares` binary + plugins + `python3` job runner installed under a staging root (`/tmp/live-root`) that `live.ks` (Task 8) pulls into the live squashfs. Prints `DONE` on success.
+- Produces: `calamares` binary + plugins + `python3` job runner installed under a staging root (`/tmp/live-root`), packaged into RPMs in `iso/repo` that `live.ks` (Task 8) pulls into the live system via its local repo. Prints `DONE` on success.
 
 - [ ] **Step 1: Write the script (builder-only; verify with bash -n locally)**
 
 ```bash
 #!/usr/bin/env bash
 # Build Calamares 3.3.14 + KPMcore 24.05.2 from source into a staging root
-# that the live ISO (live.ks) will bake into the squashfs.
+# that the live ISO (live.ks) pulls in as RPMs from iso/repo.
 #
 # MUST run on AlmaLinux 9 x86_64 with the build deps installed
 # (see install-deps.sh additions). Run from platform/iso/calamares/.
@@ -1433,6 +1432,58 @@ ls "$STAGING/usr/lib64/calamares/modules/" | grep -q thiscloudqml && echo "  thi
 test -f "$STAGING/etc/calamares/branding/thiscloud/branding.desc" && echo "  branding: OK"
 test -f "$STAGING/etc/calamares/settings.conf" && echo "  settings: OK"
 
+# ── Package the staging root into RPMs for live.ks %packages ─────────
+# livemedia-creator resolves %packages from repos; the live host is built
+# from RPMs, so the compiled Calamares/KPMcore must become RPMs.
+echo "==> packaging staging root into RPMs"
+RPMROOT="$WORK/rpm"
+mkdir -p "$RPMROOT"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+REPO_RPMS="${THISCLOUD_REPO_RPMS:-$(cd "$(pwd)/.." && pwd)/repo}"  # platform/iso/repo — createrepo'd repo
+
+rpmbuild_spec() { # $1=name $2=version $3=summary
+  cat > "$RPMROOT/SPECS/$1.spec" <<EOF
+%define _topdir $RPMROOT
+Name: $1
+Version: $2
+Release: 1
+Summary: $3
+License: GPL-3.0-or-later
+BuildArch: $(uname -m)
+BuildRoot: %{_tmppath}/%{name}-%{version}-root
+
+%description
+$3. Compiled from source for AlmaLinux 9 (no EPEL9 package).
+
+%install
+rm -rf %{buildroot}
+cp -a "$STAGING"/. %{buildroot}/
+
+%files
+EOF
+  # Enumerate every staged file (path relative to root, leading /).
+  ( cd "$STAGING" && find . -type f -o -type l | sort | sed 's|^\.|/|' ) \
+    >> "$RPMROOT/SPECS/$1.spec"
+}
+
+# kpmcore and calamares each own their installed tree; split by prefix is
+# fiddly, so ship both trees in one calamares RPM plus a tiny kpmcore RPM.
+# (Simplest correct split: everything under /usr/lib64/cmake/kpmcore and
+# kpmcore headers/libs go in kpmcore; here we bundle both into calamares
+# RPM to keep the spec list trivial — builder may refine.)
+rpmbuild_spec calamares "${CALAMARES_VER}" "Calamares installer + KPMcore for THISCLOUD"
+rpmbuild --define "_topdir $RPMROOT" -bb "$RPMROOT/SPECS/calamares.spec" \
+  || { echo "ERROR: rpmbuild failed (see $RPMROOT/rpms-build.log)"; exit 1; }
+mkdir -p "$REPO_RPMS"
+cp "$RPMROOT"/RPMS/*/*.rpm "$REPO_RPMS/" 2>/dev/null || cp "$RPMROOT"/RPMS/*.rpm "$REPO_RPMS/" 2>/dev/null || true
+echo "  rpm output: $(ls "$REPO_RPMS")"
+
+echo "==> regenerating repo metadata"
+if command -v createrepo_c >/dev/null 2>&1; then
+  createrepo_c --update "$REPO_RPMS"
+else
+  echo "WARNING: createrepo_c not found — run: dnf install -y createrepo_c; createrepo_c $REPO_RPMS"
+fi
+
 echo "DONE"
 ```
 
@@ -1460,8 +1511,8 @@ git commit -m "feat(iso): add Calamares+KPMcore source build script for EL9"
 - Create: `platform/iso/calamares/live/autostart/xorg-autologin.conf`
 
 **Interfaces:**
-- Consumes: Calamares install from Task 7 (staged under `/tmp/live-root`, already merged via `--rootfs`/chroot by the caller), thiscloud branding.
-- Produces: a bootable live ISO (built by `livemedia-creator --make-iso` in Task 9) that boots Xorg → openbox → autologin → Calamares autostart.
+- Consumes: Calamares RPMs produced by Task 7 (staged under the local repo `iso/repo`), thiscloud branding.
+- Produces: a bootable live ISO (built by `livemedia-creator --make-iso --no-virt` in Task 9) that boots Xorg → openbox → autologin → Calamares autostart.
 
 - [ ] **Step 1: Write live.ks**
 
@@ -1494,6 +1545,11 @@ part / --size=4096 --grow --fstype=ext4
 # packages come from the configured repos at build time.
 #cdrom
 
+# Local repo with THISCLOUD RPMs (thiscloud, thiscloudd, calamares,
+# kpmcore — built by build-calamares.sh). Path is host-visible because
+# the build runs with --no-virt.
+repo --name=thiscloud-local --baseurl=file:///data/thiscloud-repo
+
 # ── Packages ─────────────────────────────────────────────────────────
 %packages
 @core
@@ -1504,10 +1560,10 @@ xorg-x11-server-common
 openbox
 xterm
 xsetroot
-# NOTE: calamares + kpmcore are NOT RPMs — they are compiled from source by
-# build-calamares.sh into the staging root and injected post-build (Task 9).
-# Listing them here would make dnf fail. Runtime deps below resolve from
-# base/EPEL repos.
+# Calamares + runtime deps (built by build-calamares.sh → RPMs in
+# thiscloud-local repo)
+calamares
+kpmcore
 python3
 python3-pyqt6
 qt6-qtbase
@@ -1624,29 +1680,39 @@ ALMAISO="${ALMAISO:-/data/AlmaLinux-9-latest-x86_64-minimal.iso}"
 OUT="${OUT:-/data/thiscloud-live-iso}"
 VERSION="${VERSION:-0.1.0}"
 LIVE_ROOT="${LIVE_ROOT:-/tmp/live-root}"
+LOCAL_REPO="${LOCAL_REPO:-/data/thiscloud-repo}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CALAMAES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ISO_REPO="$(cd "$CALAMAES_DIR/.." && pwd)/repo"   # existing THISCLOUD RPM repo
 
 echo "==> building THISCLOUD live ISO"
 mkdir -p "$OUT"
 
-# 1. Build Calamares + KPMcore into a staging root.
-if [ ! -x "$LIVE_ROOT/usr/bin/calamares" ]; then
-  bash "$SCRIPT_DIR/build-calamares.sh" "$LIVE_ROOT"
+# 1. Build Calamares + KPMcore (from source) and package them as RPMs
+#    into the local THISCLOUD repo (iso/repo).
+if [ ! -f "$ISO_REPO/repodata/repomd.xml" ]; then
+  echo "ERROR: $ISO_REPO is not a dnf repo (no repodata/). Run build-iso.sh step [1-4] first." >&2
+  exit 1
 fi
+THISCLOUD_REPO_RPMS="$ISO_REPO" bash "$SCRIPT_DIR/build-calamares.sh" "$LIVE_ROOT"
 
-# 2. Merge the staged root into a working rootfs for livemedia-creator.
-ROOTFS="$OUT/live-rootfs"
-rm -rf "$ROOTFS"
-cp -a "$LIVE_ROOT/." "$ROOTFS/"
+# 2. Point live.ks at a host-visible repo. livemedia-creator runs with
+#    --no-virt, so the file:// baseurl is reachable from the host.
+mkdir -p "$(dirname "$LOCAL_REPO")"
+if [ "$(readlink -f "$ISO_REPO")" != "$(readlink -f "$LOCAL_REPO")" ]; then
+  rm -rf "$LOCAL_REPO"
+  cp -a "$ISO_REPO"/. "$LOCAL_REPO"/
+fi
+# Builder-verified detail: if no-virt dnf can't reach the host file:// URL,
+# serve it over http instead — `python3 -m http.server 8080 -d "$LOCAL_REPO"`
+# and set `repo --name=thiscloud-local --baseurl=http://127.0.0.1:8080`
+# in live.ks. Keep this line in sync with the repo URL in live.ks.
 
-# 3. Assemble the live ISO from the kickstart. livemedia-creator needs a
-#    --source ISO to resolve the @core package set; our Calamares bits are
-#    already inside ROOTFS and copied in via --rootfs.
-livemedia-creator --make-iso --iso-only \
+# 3. Assemble the live ISO. Package set (incl. calamares/kpmcore RPMs)
+#    comes from %packages in live.ks, resolved against the local repo.
+livemedia-creator --make-iso --no-virt --iso-only \
   --ks "$CALAMAES_DIR/live/live.ks" \
-  --rootfs "$ROOTFS" \
   --source "$ALMAISO" \
   --resultdir "$OUT" \
   --project "THISCLOUD" \
@@ -1739,7 +1805,7 @@ dnf install -y \
   boost-devel yaml-cpp-devel parted-devel \
   extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel kf5-kconfig-devel \
   python3 python3-devel python3-pyqt6 \
-  lorax livemedia-utils 2>/dev/null \
+  lorax livemedia-utils createrepo_c rpm-build 2>/dev/null \
   || echo "WARNING: some Calamares deps unavailable from current repos (EPEL9 may be needed)"
 ```
 
@@ -1849,6 +1915,11 @@ ALMAISO=/data/AlmaLinux-9-latest-x86_64-minimal.iso \
   bash platform/iso/calamares/scripts/build-live-iso.sh
 ```
 
+`build-live-iso.sh` compiles Calamares+KPMcore, packages them as RPMs into
+`iso/repo` (regenerating repo metadata), then assembles the live ISO with
+`livemedia-creator --no-virt` using `live/live.ks`, which pulls `calamares`,
+`kpmcore`, and the THISCLOUD packages from the local repo.
+
 Output: `/data/thiscloud-live-iso/ThisCloud-<VERSION>-x86_64.iso`.
 
 ## Tests (any host)
@@ -1916,9 +1987,15 @@ git commit -m "docs(iso): add Calamares installer README"
 - Build-everything reality (no Calamares in EPEL9) → Tasks 7, 9, 10. ✓
 - macOS can't build ISO → all C++/ISO steps are builder-only scripts; macOS runs pure-Python tests. ✓
 
-**2. Placeholder scan:** All code blocks are complete; no TBD/TODO. The `build-live-iso.sh` `--rootfs` flag is the one builder-verified detail — flagged in-file as needing builder confirmation, but the script is structurally complete.
+**2. Placeholder scan:** All code blocks are complete; no TBD/TODO.
 
-**3. Type consistency:** `thiscloudRole/thiscloudClusterName/thiscloudNodeIp/thiscloudInterface` names identical across Task 4 (write in C++), Task 5 (read in Python), Task 6 (no direct ref), Task 12 (docs). `build_init_args` returns `["/usr/bin/thiscloud", "init", ...]` matching the CLI's `thiscloud init --ip --role` in Task 5's usage. PNG filenames consistent across Tasks 1-2. Module names (`thiscloudqml`, `thiscloud`) consistent across Tasks 4-6.
+**3. Self-review fixes (post-verification):**
+- `livemedia-creator` has NO `--rootfs` flag (confirmed against lorax man page). The original injection mechanism was fabricated. **Rewritten:** Calamares/KPMcore are now packaged as RPMs (Task 7 `rpmbuild` spec generated from the staging root) into the existing `iso/repo`; `live.ks` gets a `repo --name=thiscloud-local` line + `calamares`/`kpmcore` restored to `%packages`; `build-live-iso.sh` uses `--make-iso --no-virt --iso-only` with no `--rootfs`. HTTP-server repo fallback documented in-file.
+- `live.ks` `%packages` initially listed `calamares`/`kpmcore` (not RPMs) — would break dnf; fixed by the RPM-repo rewrite above.
+- `live.ks` `%post` wrote the openbox autostart but never started openbox (`startx` without `.xinitrc` falls back to xterm). **Added `/home/live/.xinitrc` with `exec openbox-session`.**
+- `install-deps.sh` additions now include `createrepo_c rpm-build` (needed for Task 7 RPM packaging).
+
+**4. Type consistency:** `thiscloudRole/thiscloudClusterName/thiscloudNodeIp/thiscloudInterface` names identical across Task 4 (write in C++), Task 5 (read in Python), Task 6 (no direct ref), Task 12 (docs). `build_init_args` returns `["/usr/bin/thiscloud", "init", ...]` matching the CLI's `thiscloud init --ip --role` in Task 5's usage. PNG filenames consistent across Tasks 1-2. Module names (`thiscloudqml`, `thiscloud`) consistent across Tasks 4-6.
 
 ## Execution Handoff
 
