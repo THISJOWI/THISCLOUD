@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -38,6 +39,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/resources/{type}/{id}", s.getResource)
 	mux.HandleFunc("PUT /api/v1/resources/{type}/{id}", s.updateResource)
 	mux.HandleFunc("DELETE /api/v1/resources/{type}/{id}", s.deleteResource)
+	mux.HandleFunc("POST /api/v1/resources/thiscloud_vm/{id}/start", s.startVM)
+	mux.HandleFunc("POST /api/v1/resources/thiscloud_vm/{id}/stop", s.stopVM)
+	mux.HandleFunc("POST /api/v1/vms/{id}/start", s.startVM)
+	mux.HandleFunc("POST /api/v1/vms/{id}/stop", s.stopVM)
 	mux.HandleFunc("GET /api/v1/images", s.listImages)
 	mux.HandleFunc("POST /api/v1/images", s.registerImage)
 	mux.HandleFunc("PUT /api/v1/images/{id}/upload", s.uploadImage)
@@ -193,7 +198,89 @@ func (s *Server) listAll(w http.ResponseWriter, typeFilter string) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	if typeFilter == "" || typeFilter == string(model.ResourceVM) {
+		// Enrich stored VMs with live daemon status and node placement when daemon is reachable
+		if liveVms, err := s.backend.ListVMDisk(context.Background()); err == nil {
+			statusMap := make(map[string]map[string]any)
+			for _, lvm := range liveVms {
+				if id, ok := lvm["id"].(string); ok && id != "" {
+					statusMap[id] = lvm
+				}
+				if name, ok := lvm["name"].(string); ok && name != "" {
+					statusMap[name] = lvm
+				}
+			}
+
+			for i, res := range resources {
+				if vm, ok := res.(model.VM); ok {
+					changed := false
+					if lvm, found := statusMap[vm.ID()]; found {
+						if st, ok := lvm["status"].(string); ok && st != "" {
+							vm.Status = st
+							changed = true
+						}
+						if nd, ok := lvm["node"].(string); ok && nd != "" {
+							vm.Node = nd
+							changed = true
+						}
+					} else if lvm, found := statusMap[vm.Name]; found {
+						if st, ok := lvm["status"].(string); ok && st != "" {
+							vm.Status = st
+							changed = true
+						}
+						if nd, ok := lvm["node"].(string); ok && nd != "" {
+							vm.Node = nd
+							changed = true
+						}
+					}
+					if changed {
+						resources[i] = vm
+					}
+				}
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, resources)
+}
+
+func (s *Server) startVM(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errors.New("missing vm id"))
+		return
+	}
+	if err := s.backend.StartVM(r.Context(), id); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if res, err := s.store.Get(id); err == nil {
+		if vm, ok := res.(model.VM); ok {
+			vm.Status = "running"
+			_ = s.store.Put(vm)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "running", "id": id})
+}
+
+func (s *Server) stopVM(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errors.New("missing vm id"))
+		return
+	}
+	if err := s.backend.StopVM(r.Context(), id); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	if res, err := s.store.Get(id); err == nil {
+		if vm, ok := res.(model.VM); ok {
+			vm.Status = "stopped"
+			_ = s.store.Put(vm)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped", "id": id})
 }
 
 func (s *Server) createResource(w http.ResponseWriter, r *http.Request) {

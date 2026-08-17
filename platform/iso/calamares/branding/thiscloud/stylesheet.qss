@@ -1,13 +1,140 @@
-/* THISCLOUD stylesheet for Calamares Qt widgets. */
-QWidget { background-color: #0f1115; color: #e6e9ef; }
-#sidebarApp { background-color: #171a21; }
-#sidebarApp QLabel { color: #e6e9ef; }
-QPushButton { background-color: #171a21; border: 1px solid #3b82f6;
-              border-radius: 4px; padding: 6px 16px; color: #e6e9ef; }
-QPushButton:hover { background-color: #3b82f6; color: #0f1115; }
-QPushButton:disabled { border-color: #33363d; color: #6b7280; }
-QLineEdit, QComboBox, QSpinBox { background-color: #171a21; border: 1px solid #33363d;
-                                 border-radius: 4px; padding: 4px 8px; color: #e6e9ef; }
-QLineEdit:focus, QComboBox:focus { border-color: #3b82f6; }
-QProgressBar { background-color: #171a21; border: 1px solid #33363d; border-radius: 4px; }
-QProgressBar::chunk { background-color: #3b82f6; }
+/* THISCLOUD stylesheet for Calamares Qt widgets.
+   Matches the web-ui dark theme:
+   --bg: #0f1115, --card: #171a21, --border: #2a2f3a, --accent: #3b82f6, --fg: #e6e9ef
+*/
+QWidget {
+    background-color: #0f1115;
+    color: #e6e9ef;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+}
+
+/* Sidebar styling */
+#sidebarApp {
+    background-color: #171a21;
+    border-right: 1px solid #2a2f3a;
+}
+#sidebarApp QLabel {
+    color: #e6e9ef;
+    padding: 8px 12px;
+}
+
+/* Push buttons */
+QPushButton {
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    border-radius: 6px;
+    padding: 8px 20px;
+    color: #e6e9ef;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+QPushButton:disabled {
+    border-color: #2a2f3a;
+    color: #4b5563;
+    background-color: #12141a;
+}
+
+/* Form controls: input fields, combo boxes, spin boxes */
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #e6e9ef;
+    selection-background-color: #3b82f6;
+    selection-color: #ffffff;
+}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+    border-color: #3b82f6;
+    background-color: #1c202a;
+}
+QComboBox::drop-down {
+    border: none;
+    padding-right: 8px;
+}
+QComboBox QAbstractItemView {
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    selection-background-color: #3b82f6;
+    selection-color: #ffffff;
+    color: #e6e9ef;
+}
+
+/* Progress bar during installation */
+QProgressBar {
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    border-radius: 6px;
+    text-align: center;
+    color: #e6e9ef;
+    height: 20px;
+}
+QProgressBar::chunk {
+    background-color: #3b82f6;
+    border-radius: 5px;
+}
+
+/* View panels, tree views, lists */
+QTreeView, QListView, QTableView {
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    border-radius: 6px;
+    color: #e6e9ef;
+    selection-background-color: #3b82f6;
+    selection-color: #ffffff;
+}
+QHeaderView::section {
+    background-color: #12141a;
+    color: #8b93a3;
+    padding: 6px;
+    border: 1px solid #2a2f3a;
+    font-weight: 600;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    background-color: #0f1115;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background-color: #2a2f3a;
+    border-radius: 5px;
+    min-height: 20px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: #3b82f6;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+/* Checkboxes and Radio buttons */
+QCheckBox, QRadioButton {
+    color: #e6e9ef;
+    spacing: 8px;
+}
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    background-color: #171a21;
+    border: 1px solid #2a2f3a;
+    border-radius: 4px;
+}
+QRadioButton::indicator {
+    border-radius: 9px;
+}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}

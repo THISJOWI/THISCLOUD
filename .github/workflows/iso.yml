@@ -14,8 +14,9 @@ permissions:
 #   iso-build    — ubuntu-latest: cross-compiles Rust (musl), builds RPMs,
 #                  Go API and web-ui. No AlmaLinux needed. Stages artifacts.
 #   iso-assemble — ubuntu-latest + container almalinux:9: downloads the base
-#                  ISO, fetches dependency RPMs (needs dnf/EL repos), remixes
-#                  the ISO. Uploads artifact and to R2.
+#                  ISO, fetches dependency RPMs (needs dnf/EL repos), builds
+#                  Calamares live installer, and produces the final Live ISO.
+#                  Uploads artifact and to R2.
 #
 # Runs on manual dispatch or on release tags (v*). Not on plain main pushes.
 
@@ -28,6 +29,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+        # protoc + etcd required for Rust workspace compilation
       - name: Install musl cross-compiler + protoc + etcd
         run: sudo apt-get update && sudo apt-get install -y musl-tools protobuf-compiler etcd-server
       - uses: Swatinem/rust-cache@v2
@@ -125,19 +127,15 @@ jobs:
           fi
           ls -lh "$ALMAISO"
 
-      - name: Assemble ISO (almalinux:9 container, skip-compile mode)
+      - name: Assemble ISO (almalinux:9 container with livemedia-creator)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # The builder writes the ISO to a container-LOCAL dir (/out), never
-          # into the bind-mounted workspace: dockerd's teardown of `docker rm`
-          # sweeps bind-mount contents on GitHub-hosted runners (even files the
-          # host writes there), which silently deleted every previous attempt's
-          # ISO. Extract via docker cp into runner.temp (outside the bind)
-          # while the container still exists, then remove it.
           CONTAINER=thiscloud-iso-builder
           ISO_HOST_DIR="${{ runner.temp }}/iso-out"
           docker run --name="$CONTAINER" \
+            --privileged \
+            -v /dev:/dev \
             -v "${{ github.workspace }}:/build" \
             -w /build \
             -e VERSION="$VERSION" \
@@ -147,8 +145,14 @@ jobs:
             -e WORK_DIR=/tmp/.iso-work \
             almalinux:9 bash -lc '
               set -euo pipefail
+              dnf install -y epel-release
+              dnf config-manager --set-enabled crb 2>/dev/null || true
               dnf install -y xorriso createrepo_c isomd5sum cpio gzip \
-                dnf-utils dnf-plugins-core python3
+                dnf-utils dnf-plugins-core python3 python3-devel gcc gcc-c++ \
+                cmake make rpm-build lorax \
+                qt6-qtbase-devel qt6-qtsvg-devel qt6-qtdeclarative-devel \
+                boost-devel yaml-cpp-devel parted-devel kf5-kcoreaddons-devel \
+                kf5-ki18n-devel kf5-kconfig-devel extra-cmake-modules || true
               for tool in xorriso cpio createrepo_c implantisomd5 curl; do
                 command -v "$tool" >/dev/null 2>&1 || { echo "::error::missing $tool"; exit 1; }
               done

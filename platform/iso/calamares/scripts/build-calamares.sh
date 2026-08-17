@@ -64,8 +64,8 @@ echo "==> building calamares"
 cmake --build "$WORK/calamares-build" -j"$(nproc)"
 DESTDIR="$STAGING" cmake --install "$WORK/calamares-build"
 
-# ── Install branding + settings + module into staging ───────────────
-echo "==> installing THISCLOUD branding/settings"
+# ── Install branding + settings + modules into staging ───────────────
+echo "==> installing THISCLOUD branding/settings and module configs"
 BRANDING_DIR="$(pwd)/branding/thiscloud"
 install -d "$STAGING/etc/calamares/branding/thiscloud"
 cp -r "$BRANDING_DIR"/. "$STAGING/etc/calamares/branding/thiscloud/"
@@ -73,21 +73,33 @@ cp -r "$BRANDING_DIR"/. "$STAGING/etc/calamares/branding/thiscloud/"
 install -d "$STAGING/etc/calamares"
 cp -f "$(pwd)/settings.conf" "$STAGING/etc/calamares/settings.conf"
 
+install -d "$STAGING/etc/calamares/modules"
+
+# Install custom thiscloud job module
 install -d "$STAGING/etc/calamares/modules/thiscloud"
 cp -f "$(pwd)/modules/thiscloud/main.py" "$STAGING/etc/calamares/modules/thiscloud/"
 cp -f "$(pwd)/modules/thiscloud/thiscloud_logic.py" "$STAGING/etc/calamares/modules/thiscloud/"
 cp -f "$(pwd)/modules/thiscloud/module.desc" "$STAGING/etc/calamares/modules/thiscloud/"
 cp -f "$(pwd)/modules/thiscloud/thiscloud.conf" "$STAGING/etc/calamares/modules/thiscloud/"
 
+# Install Proxmox-like customized module configurations
+for mod in welcome partition locale keyboard users finished; do
+  if [ -f "$(pwd)/modules/$mod/$mod.conf" ]; then
+    install -d "$STAGING/etc/calamares/modules/$mod"
+    cp -f "$(pwd)/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod/"
+    cp -f "$(pwd)/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod.conf"
+  fi
+done
+
 echo "==> sanity checks"
 test -x "$STAGING/usr/bin/calamares" && echo "  calamares: OK"
 ls "$STAGING/usr/lib64/calamares/modules/" | grep -q thiscloudqml && echo "  thiscloudqml plugin: OK"
 test -f "$STAGING/etc/calamares/branding/thiscloud/branding.desc" && echo "  branding: OK"
 test -f "$STAGING/etc/calamares/settings.conf" && echo "  settings: OK"
+test -f "$STAGING/etc/calamares/modules/welcome.conf" && echo "  welcome.conf: OK"
+test -f "$STAGING/etc/calamares/modules/partition.conf" && echo "  partition.conf: OK"
 
 # ── Package the staging root into RPMs for live.ks %packages ─────────
-# livemedia-creator resolves %packages from repos; the live host is built
-# from RPMs, so the compiled Calamares/KPMcore must become RPMs.
 echo "==> packaging staging root into RPMs"
 RPMROOT="$WORK/rpm"
 mkdir -p "$RPMROOT"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
@@ -118,11 +130,6 @@ EOF
     >> "$RPMROOT/SPECS/$1.spec"
 }
 
-# kpmcore and calamares each own their installed tree; split by prefix is
-# fiddly, so ship both trees in one calamares RPM plus a tiny kpmcore RPM.
-# (Simplest correct split: everything under /usr/lib64/cmake/kpmcore and
-# kpmcore headers/libs go in kpmcore; here we bundle both into calamares
-# RPM to keep the spec list trivial — builder may refine.)
 rpmbuild_spec calamares "${CALAMARES_VER}" "Calamares installer + KPMcore for THISCLOUD"
 rpmbuild --define "_topdir $RPMROOT" -bb "$RPMROOT/SPECS/calamares.spec" \
   || { echo "ERROR: rpmbuild failed (see $RPMROOT/rpms-build.log)"; exit 1; }

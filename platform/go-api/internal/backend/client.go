@@ -128,6 +128,16 @@ func (c *Client) ListVMDisk(ctx context.Context) ([]map[string]any, error) {
 	return c.list(ctx, "vms")
 }
 
+// StartVM sends a POST to the daemon to start a VM.
+func (c *Client) StartVM(ctx context.Context, id string) error {
+	return c.request(ctx, http.MethodPost, fmt.Sprintf("vms/%s/start", id), nil)
+}
+
+// StopVM sends a POST to the daemon to stop a VM.
+func (c *Client) StopVM(ctx context.Context, id string) error {
+	return c.request(ctx, http.MethodPost, fmt.Sprintf("vms/%s/stop", id), nil)
+}
+
 // list performs a GET on a daemon collection and decodes the JSON array.
 func (c *Client) list(ctx context.Context, collection string) ([]map[string]any, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/"+collection, nil)

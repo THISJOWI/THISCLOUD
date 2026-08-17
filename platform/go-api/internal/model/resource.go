@@ -176,18 +176,27 @@ func newID() string {
 // resource carries a stable identifier in the orchestrator state. Without one,
 // deletes address an empty id and the API rejects them with 405.
 func AssignID(res Resource) Resource {
-	if res.ID() != "" {
-		return res
-	}
 	switch v := res.(type) {
 	case VM:
-		v.ResourceID = newID()
+		if v.ResourceID == "" {
+			v.ResourceID = newID()
+		}
+		if v.Status == "" {
+			v.Status = "stopped"
+		}
 		return v
 	case Network:
-		v.ResourceID = newID()
+		if v.ResourceID == "" {
+			v.ResourceID = newID()
+		}
+		if v.Status == "" {
+			v.Status = "active"
+		}
 		return v
 	case StoragePool:
-		v.ResourceID = newID()
+		if v.ResourceID == "" {
+			v.ResourceID = newID()
+		}
 		return v
 	default:
 		return res
