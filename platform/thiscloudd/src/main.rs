@@ -11,7 +11,9 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting thiscloudd v{}", env!("CARGO_PKG_VERSION"));
 
-    let config_path = std::path::PathBuf::from("/etc/thiscloud/config.toml");
+    let config_path = std::env::var("THISCLOUD_CONFIG")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/etc/thiscloud/config.toml"));
     let config = if config_path.exists() {
         ThisCloudConfig::load(&config_path)?
     } else {

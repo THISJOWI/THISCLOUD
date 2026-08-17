@@ -13,6 +13,12 @@ function startMock() {
       res.end(JSON.stringify({ status: "ok" }));
       return;
     }
+    if (url.pathname === "/ready" && req.method === "GET") {
+      res.end(
+        JSON.stringify({ status: "ready", checks: { daemon: true }, daemon_status: "ok" })
+      );
+      return;
+    }
     const match = url.pathname.match(
       /^\/api\/v1\/resources\/(thiscloud_[^/]+)(?:\/([^/]+))?$/
     );
@@ -90,6 +96,19 @@ test("health returns ok", async () => {
     assert.equal(res.ok, true);
     const body = await res.json();
     assert.equal(body.status, "ok");
+  } finally {
+    server.close();
+  }
+});
+
+test("ready reports ready when daemon is up", async () => {
+  const { server, base } = await startMock();
+  try {
+    const res = await fetch(`${base}/ready`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.status, "ready");
+    assert.equal(body.checks.daemon, true);
   } finally {
     server.close();
   }

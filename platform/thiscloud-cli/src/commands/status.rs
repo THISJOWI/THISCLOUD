@@ -40,6 +40,27 @@ pub async fn run_status() -> anyhow::Result<()> {
 
     let base = api_base();
 
+    // 1b. Readiness: dependencies the daemon actually uses (etcd etc).
+    let ready = format!("{}/ready", base);
+    match client.get(&ready).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let mut checks = String::new();
+            if let Ok(body) = resp.json::<Value>().await {
+                if let Some(checks_obj) = body["checks"].as_object() {
+                    let parts: Vec<String> = checks_obj
+                        .iter()
+                        .map(|(k, v)| format!("{}={}", k, v.as_bool().unwrap_or(false)))
+                        .collect();
+                    checks = format!(" ({})", parts.join(", "));
+                }
+            }
+            let label = if status.is_success() { "Ready" } else { "Degraded" };
+            println!("Readiness: {}{}", label, checks);
+        }
+        Err(_) => println!("Readiness: unknown"),
+    }
+
     // 2. Cluster nodes with live state, when the daemon exposes them.
     match client.get(format!("{}/nodes", base)).send().await {
         Ok(resp) if resp.status().is_success() => {

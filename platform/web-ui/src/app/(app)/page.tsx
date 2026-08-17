@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listResources, health } from "@/lib/api";
+import { listResources, health, readiness } from "@/lib/api";
 import { ContextHeader, StatCard, ResourceTable } from "@/components/ui";
 import { cookies } from "next/headers";
 
@@ -20,8 +20,9 @@ export default async function PortalPage() {
     );
   }
 
-  const [online, vms, networks, pools] = await Promise.all([
+  const [online, ready, vms, networks, pools] = await Promise.all([
     health(),
+    readiness(),
     listResources("thiscloud_vm").catch(() => []),
     listResources("thiscloud_network").catch(() => []),
     listResources("thiscloud_storage_pool").catch(() => []),
@@ -31,14 +32,20 @@ export default async function PortalPage() {
     (v) => String(v.status).toLowerCase() === "running"
   ).length;
 
+  const readyLabel = ready
+    ? ready.status === "ready"
+      ? "Ready"
+      : "Degraded"
+    : "Unknown";
+
   return (
     <div className="content">
       <ContextHeader
         title="Host-01 Summary"
         meta={
           <>
-            Cluster: {online ? "Online" : "Offline"}{" "}
-            <span className="sep">•</span> {vms.length} VMs{" "}
+            Cluster: {online ? "Online" : "Offline"} <span className="sep">•</span>{" "}
+            Readiness: {readyLabel} <span className="sep">•</span> {vms.length} VMs{" "}
             <span className="sep">•</span> {networks.length} Networks{" "}
             <span className="sep">•</span> {pools.length} Storage Pools
           </>
@@ -69,10 +76,19 @@ export default async function PortalPage() {
         />
         <StatCard
           label="API Status"
-          value={online ? "Online" : "Offline"}
+          value={ready ? (ready.status === "ready" ? "Ready" : "Degraded") : online ? "Online" : "Offline"}
+          sub={ready?.checks ? Object.entries(ready.checks).map(([k, v]) => `${k}=${v}`).join(", ") : undefined}
           icon="◉"
-          progress={online ? 100 : 0}
-          progressColor={online ? "var(--ok)" : "var(--error)"}
+          progress={ready ? (ready.status === "ready" ? 100 : 50) : online ? 100 : 0}
+          progressColor={
+            ready
+              ? ready.status === "ready"
+                ? "var(--ok)"
+                : "var(--warn)"
+              : online
+                ? "var(--ok)"
+                : "var(--error)"
+          }
         />
       </div>
 

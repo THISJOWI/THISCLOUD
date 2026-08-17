@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { isMutation, verifySessionToken } from "@/lib/session";
 
 const API_URL = process.env.API_URL ?? "http://127.0.0.1:8081";
-const PUBLIC_PROXY_PATHS = new Set(["/healthz"]);
+const PUBLIC_PROXY_PATHS = new Set(["/healthz", "/ready"]);
 
 /**
  * Server-side API proxy.

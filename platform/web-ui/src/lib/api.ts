@@ -148,6 +148,22 @@ export async function health(): Promise<boolean> {
   }
 }
 
+export type Readiness = {
+  status: string;
+  checks?: Record<string, boolean>;
+  daemon_status?: string;
+};
+
+export async function readiness(): Promise<Readiness | null> {
+  try {
+    const res = await apiFetch("/ready");
+    const body: Readiness = await res.json();
+    return { ...body, status: res.ok ? body.status : "not_ready" };
+  } catch {
+    return null;
+  }
+}
+
 export type Image = {
   id?: string;
   name: string;

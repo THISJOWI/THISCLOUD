@@ -46,6 +46,30 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
+// Ping probes the daemon's public health endpoint. Returns the daemon's
+// reported status and whether it is reachable.
+func (c *Client) Ping(ctx context.Context) (string, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/healthz", nil)
+	if err != nil {
+		return "", false
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	status := ""
+	if resp.StatusCode == http.StatusOK {
+		var body map[string]any
+		if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&body); err == nil {
+			if s, ok := body["status"].(string); ok {
+				status = s
+			}
+		}
+	}
+	return status, resp.StatusCode == http.StatusOK
+}
+
 // Create sends a POST to the daemon's resource collection endpoint.
 func (c *Client) Create(ctx context.Context, collection string, body any) error {
 	return c.request(ctx, http.MethodPost, collection, body)

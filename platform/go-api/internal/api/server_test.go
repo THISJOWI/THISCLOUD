@@ -176,6 +176,52 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestReadyWithDaemonDown(t *testing.T) {
+	// newTestServer points at a closed port — the daemon is unreachable.
+	s := newTestServer(t)
+	rec := doJSON(t, s, http.MethodGet, "/ready", "")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("ready: want 503, got %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("ready body: %v", err)
+	}
+	if body["status"] != "not_ready" {
+		t.Fatalf("ready: want not_ready, got %v", body["status"])
+	}
+	if checks, ok := body["checks"].(map[string]any); ok && checks["daemon"] == true {
+		t.Fatalf("ready: daemon should be unreachable, got %v", checks["daemon"])
+	}
+}
+
+func TestReadyWithDaemonUp(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/healthz" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer daemon.Close()
+
+	store, err := state.NewStore(filepath.Join(t.TempDir(), "test.tfstate"))
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	s := NewServer(store, backend.NewClient(daemon.URL))
+	rec := doJSON(t, s, http.MethodGet, "/ready", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ready: want 200, got %d", rec.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("ready body: %v", err)
+	}
+	if body["status"] != "ready" {
+		t.Fatalf("ready: want ready, got %v", body["status"])
+	}
+}
+
 func TestCreateUnknownTypeRejected(t *testing.T) {
 	s := newTestServer(t)
 	rec := doJSON(t, s, http.MethodPost, "/api/v1/resources", `{"type":"nope","id":"x"}`)

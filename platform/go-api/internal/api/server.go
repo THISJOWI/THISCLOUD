@@ -44,11 +44,27 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
 	mux.HandleFunc("GET /api/v1/vm-disks", s.listVmDisks)
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /ready", s.ready)
 	return mux
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ready reports readiness: the Go API serves once its backing daemon is
+// reachable. Connectivity to the daemon is the orchestrator's only hard
+// dependency — everything else is local state.
+func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	status, ok := s.backend.Ping(r.Context())
+	checks := map[string]any{"daemon": ok}
+	body := map[string]any{"status": "ready", "checks": checks, "daemon_status": status}
+	if !ok {
+		body["status"] = "not_ready"
+		writeJSON(w, http.StatusServiceUnavailable, body)
+		return
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // listNodes proxies the daemon's cluster node registry.

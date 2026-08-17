@@ -19,10 +19,17 @@ struct ApiServer {
 impl ApiServer {
     async fn start() -> Self {
         // Health endpoint is mounted at /api/v1/healthz by the daemon.
-        let health_router = axum::Router::new().route(
-            "/api/v1/healthz",
-            axum::routing::get(|| async { axum::Json(serde_json::json!({"status":"ok"})) }),
-        );
+        let health_router = axum::Router::new()
+            .route(
+                "/api/v1/healthz",
+                axum::routing::get(|| async { axum::Json(serde_json::json!({"status":"ok"})) }),
+            )
+            .route(
+                "/api/v1/ready",
+                axum::routing::get(|| async {
+                    axum::Json(serde_json::json!({"status":"ready","checks":{"etcd":true}}))
+                }),
+            );
 
         let compute = ComputeModule::new(
             Box::new(MockHypervisor::new()),
@@ -93,6 +100,11 @@ async fn test_cli_status_reports_daemon_nodes_vms() {
     assert!(
         stdout.contains("Daemon:   Running"),
         "expected daemon running, got:\n{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("Readiness: Ready"),
+        "expected readiness ready, got:\n{}",
         stdout
     );
     assert!(
