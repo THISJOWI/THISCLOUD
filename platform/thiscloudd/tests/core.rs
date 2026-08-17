@@ -15,3 +15,9 @@ mod test_rbac;
 
 #[path = "core/test_ha_orchestration.rs"]
 mod test_ha_orchestration;
+
+#[path = "core/test_ready_http.rs"]
+mod test_ready_http;
+
+#[path = "core/test_backup.rs"]
+mod test_backup;

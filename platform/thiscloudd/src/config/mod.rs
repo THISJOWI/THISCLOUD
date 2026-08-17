@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod backup;
 pub mod cluster;
 pub mod compute;
 pub mod ha;
@@ -11,6 +12,7 @@ pub mod s3;
 pub mod storage;
 
 pub use auth::AuthConfig;
+pub use backup::BackupConfig;
 pub use cluster::{ClusterConfig, EtcdConfig, NodeConfig};
 pub use compute::ComputeConfig;
 pub use ha::HaConfig;
@@ -29,6 +31,8 @@ use std::path::Path;
 pub struct ThisCloudConfig {
     #[serde(default)]
     pub cluster: ClusterConfig,
+    #[serde(default)]
+    pub backup: BackupConfig,
     #[serde(default)]
     pub storage: StorageConfig,
     #[serde(default)]

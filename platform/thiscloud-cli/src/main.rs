@@ -1,6 +1,7 @@
 mod commands;
 
 use clap::{Parser, Subcommand};
+use commands::backup::BackupCommands;
 use commands::image::ImageCommands;
 use commands::marketplace::MarketplaceCommands;
 use commands::network::NetworkCommands;
@@ -68,6 +69,11 @@ enum Commands {
         #[command(subcommand)]
         command: ImageCommands,
     },
+    /// Manage cluster state backups
+    Backup {
+        #[command(subcommand)]
+        command: BackupCommands,
+    },
     /// Check for and apply THISCLOUD updates
     Update {
         /// Only check for updates, do not install
@@ -93,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Marketplace { command } => commands::run_marketplace_command(command).await,
         Commands::Node { command } => commands::run_node_command(command).await,
         Commands::Image { command } => commands::run_image_command(command).await,
+        Commands::Backup { command } => commands::run_backup_command(command).await,
         Commands::Update { check, version } => commands::run_update(check, version).await,
     }
 }

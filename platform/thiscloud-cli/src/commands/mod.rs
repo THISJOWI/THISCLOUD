@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod init;
 pub mod image;
 pub mod join;
@@ -11,6 +12,7 @@ pub mod vm;
 
 use std::time::Duration;
 
+pub use backup::run_backup_command;
 pub use init::run_init;
 pub use image::run_image_command;
 pub use join::run_join;

@@ -36,6 +36,7 @@ use crate::s3::{
 };
 use crate::storage::http::{app as storage_http_app, StorageApiState};
 use crate::storage::{MemoryStorageStore, MockStorageBackend, StorageBackend, StorageModule};
+use axum::extract::State;
 use axum::routing::get;
 use axum::Router;
 use std::sync::Arc;
@@ -49,6 +50,9 @@ pub struct Daemon {
     compute_module: Arc<Mutex<ComputeModule>>,
     ha_interval_secs: u64,
     node_heartbeat_interval_secs: u64,
+    etcd: Option<EtcdClient>,
+    backup_service: Arc<crate::backup::BackupService>,
+    backup_interval_secs: u64,
     http_router: axum::Router,
 }
 
@@ -146,6 +150,7 @@ impl Daemon {
             None => ImageModule::new(image_backend, Box::new(MemoryImageStore::default())),
         }));
         let image_router = image_http_app(ImageApiState::new(image.clone()));
+        let metric_registry = Arc::new(MetricRegistry::new());
         let compute = Arc::new(tokio::sync::Mutex::new({
             let module = match &etcd {
                 Some(c) => ComputeModule::new(backend, Box::new(EtcdVmStore::new(c.clone()))),
@@ -155,6 +160,7 @@ impl Daemon {
                 .with_quota(quota_module.clone())
                 .with_nodes(nodes.clone())
                 .with_images(image.clone())
+                .with_metrics(metric_registry.clone())
                 .with_ha(config.ha.enabled, config.ha.quorum)
         }));
 
@@ -224,8 +230,18 @@ impl Daemon {
         }));
         let s3_router = s3_http_app(S3ApiState::new(s3.clone()));
 
-        let metric_registry = Arc::new(MetricRegistry::new());
         let metrics_router = metrics_http_app(MetricsApiState::new(metric_registry.clone()));
+
+        // T0.7: etcd state backup with retention. Snapshots land on local disk;
+        // the daemon only backs up when it actually persists to etcd.
+        let backup_service = Arc::new(crate::backup::BackupService::new(
+            etcd.clone(),
+            config.backup.dir.clone(),
+            config.backup.retention,
+        ));
+        let backup_router =
+            crate::backup::http::app(crate::backup::http::BackupApiState::new(backup_service.clone()));
+        let backup_interval_secs = config.backup.interval_secs.max(1);
 
         let node_router = node_http_app(NodeApiState::new(nodes.clone()));
 
@@ -237,7 +253,8 @@ impl Daemon {
             .merge(node_router)
             .merge(quota_router)
             .merge(s3_router)
-            .merge(metrics_router);
+            .merge(metrics_router)
+            .merge(backup_router);
 
         // Audit middleware: records mutations to the shared audit store.
         let resource_router = resource_router.layer(
@@ -248,7 +265,9 @@ impl Daemon {
         // itself, served under the versioned prefix.
         let metadata_router = Router::new()
             .route("/api/v1/healthz", get(healthz))
-            .route("/api/v1/openapi.yaml", get(openapi_spec));
+            .route("/api/v1/ready", get(ready))
+            .route("/api/v1/openapi.yaml", get(openapi_spec))
+            .with_state(etcd.clone());
 
         // Build the full router. Everything lives under /api/v1 — this is the
         // single versioned contract (T0.1); unversioned paths now 404.
@@ -311,6 +330,9 @@ impl Daemon {
             compute_module: compute,
             ha_interval_secs,
             node_heartbeat_interval_secs,
+            etcd,
+            backup_service,
+            backup_interval_secs,
             http_router,
         }
     }
@@ -335,6 +357,12 @@ impl Daemon {
 
     pub fn http_router(&self) -> axum::Router {
         self.http_router.clone()
+    }
+
+    /// The etcd client this daemon was built with, if any. `None` means the
+    /// daemon runs on in-memory stores (dev/single-node).
+    pub fn etcd(&self) -> Option<EtcdClient> {
+        self.etcd.clone()
     }
 
     pub fn http_bind(&self) -> &str {
@@ -475,6 +503,34 @@ impl Daemon {
             });
         }
 
+        // T0.7: periodic etcd state backup with retention, when enabled.
+        if self.config.backup.enabled {
+            let backup = self.backup_service.clone();
+            let interval = self.backup_interval_secs;
+            let retention = self.config.backup.retention;
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
+                loop {
+                    ticker.tick().await;
+                    match backup.create_snapshot().await {
+                        Ok(info) => tracing::info!(
+                            "Backup snapshot {} written ({} entries, {} bytes)",
+                            info.name,
+                            info.entries,
+                            info.size_bytes
+                        ),
+                        Err(e) => tracing::warn!("Backup snapshot failed: {:#}", e),
+                    }
+                    match backup.prune().await {
+                        Ok(removed) if !removed.is_empty() => {
+                            tracing::info!("Backup pruned {} snapshot(s) (retention={})", removed.len(), retention)
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+
         Ok(())
     }
 
@@ -550,6 +606,26 @@ impl Daemon {
 /// Health check (public): confirms the daemon HTTP surface is up.
 async fn healthz() -> impl axum::response::IntoResponse {
     axum::Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// Readiness check (public): the daemon is ready to serve when the dependency
+/// it actually uses — etcd, when configured — is reachable. Modules using
+/// in-memory stores (dev/single-node) report ready immediately.
+async fn ready(
+    State(etcd): State<Option<EtcdClient>>,
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    let checks = serde_json::json!({ "etcd": match &etcd {
+        Some(c) => c.healthy().await,
+        None => true, // in-memory stores need no external dependency
+    } });
+    let ok = checks["etcd"].as_bool().unwrap_or(false);
+    let status = if ok { "ready" } else { "not_ready" };
+    let body = axum::Json(serde_json::json!({ "status": status, "checks": checks }));
+    if ok {
+        Ok(body)
+    } else {
+        Err((axum::http::StatusCode::SERVICE_UNAVAILABLE, body))
+    }
 }
 
 /// Serves the OpenAPI contract itself, embedded at build time.
@@ -703,6 +779,7 @@ mod tests {
             image: String::new(),
             ha: false,
             migrations: 0,
+            balloon: None,
         }
     }
 
