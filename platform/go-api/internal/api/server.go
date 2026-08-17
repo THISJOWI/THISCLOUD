@@ -42,6 +42,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/images", s.registerImage)
 	mux.HandleFunc("PUT /api/v1/images/{id}/upload", s.uploadImage)
 	mux.HandleFunc("GET /api/v1/nodes", s.listNodes)
+	mux.HandleFunc("GET /api/v1/vm-disks", s.listVmDisks)
 	mux.HandleFunc("GET /healthz", s.health)
 	return mux
 }
@@ -61,6 +62,61 @@ func (s *Server) listNodes(w http.ResponseWriter, r *http.Request) {
 		nodes = []map[string]any{}
 	}
 	writeJSON(w, http.StatusOK, nodes)
+}
+
+// listVmDisks returns a flattened, live view of every VM's disks. Boot disks
+// come from the daemon's disk_path; boot size is enriched from the
+// orchestrator's desired-state disk_gb matched by VM id (the daemon does not
+// persist a boot size). Data disks come from the daemon's disks[] entries.
+func (s *Server) listVmDisks(w http.ResponseWriter, r *http.Request) {
+	vms, err := s.backend.ListVMDisk(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+
+	bootGB := map[string]int{}
+	if stored, err := s.store.List(model.ResourceVM); err == nil {
+		for _, res := range stored {
+			if vm, ok := res.(model.VM); ok {
+				bootGB[vm.ID()] = vm.DiskGB
+			}
+		}
+	}
+
+	rows := make([]map[string]any, 0)
+	for _, vm := range vms {
+		id, _ := vm["id"].(string)
+		name, _ := vm["name"].(string)
+		status, _ := vm["status"].(string)
+		path, _ := vm["disk_path"].(string)
+
+		rows = append(rows, map[string]any{
+			"vm_id":     id,
+			"vm_name":   name,
+			"disk_id":   "",
+			"path":      path,
+			"size_gb":   bootGB[id],
+			"kind":      "boot",
+			"vm_status": status,
+		})
+
+		if disks, ok := vm["disks"].([]any); ok {
+			for _, d := range disks {
+				disk, _ := d.(map[string]any)
+				rows = append(rows, map[string]any{
+					"vm_id":     id,
+					"vm_name":   name,
+					"disk_id":   disk["id"],
+					"path":      disk["path"],
+					"size_gb":   disk["size_gb"],
+					"kind":      "data",
+					"vm_status": status,
+				})
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, rows)
 }
 
 // listImages proxies the daemon's image registry.

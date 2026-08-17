@@ -98,6 +98,12 @@ func (c *Client) ListNodes(ctx context.Context) ([]map[string]any, error) {
 	return c.list(ctx, "nodes")
 }
 
+// ListVMDisk returns the daemon's live VM list (GET /vms), used to flatten
+// boot and data disks for the web UI's read-only disks view.
+func (c *Client) ListVMDisk(ctx context.Context) ([]map[string]any, error) {
+	return c.list(ctx, "vms")
+}
+
 // list performs a GET on a daemon collection and decodes the JSON array.
 func (c *Client) list(ctx context.Context, collection string) ([]map[string]any, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/"+collection, nil)

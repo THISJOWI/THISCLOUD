@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"thiscloud/api/internal/backend"
+	"thiscloud/api/internal/model"
 	"thiscloud/api/internal/state"
 )
 
@@ -258,5 +259,60 @@ func TestCreateRejectedByDaemonDoesNotPersist(t *testing.T) {
 	rec = doJSON(t, s, http.MethodGet, "/api/v1/resources/thiscloud_vm/vm-offline-node", "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("want 404 (no phantom), got %d", rec.Code)
+	}
+}
+
+func TestListVmDisksProxiesDaemon(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/vms" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id":"vm-1","name":"web","disk_path":"/var/lib/thiscloud/vms/web.qcow2","status":"running",
+			 "disks":[{"id":"d-1","path":"/data/d1.qcow2","size_gb":50}]},
+			{"id":"vm-2","name":"db","disk_path":"/var/lib/thiscloud/vms/db.qcow2","status":"stopped","disks":[]}
+		]`))
+	}))
+	defer daemon.Close()
+
+	path := filepath.Join(t.TempDir(), "test.tfstate")
+	store, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	// Seed desired state so boot-size enrichment has something to read.
+	if err := store.Put(model.VM{
+		TypeName:   "thiscloud_vm",
+		ResourceID: "vm-1",
+		Name:       "web",
+		DiskGB:     20,
+	}); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	s := NewServer(store, backend.NewClient(daemon.URL))
+
+	rec := doJSON(t, s, http.MethodGet, "/api/v1/vm-disks", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("vm-disks: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode rows: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("want 3 rows, got %d", len(rows))
+	}
+	// Row 0: vm-1 boot disk, size enriched from state (20).
+	if rows[0]["vm_id"] != "vm-1" || rows[0]["kind"] != "boot" || rows[0]["size_gb"] != float64(20) {
+		t.Fatalf("boot row wrong: %v", rows[0])
+	}
+	// Row 1: vm-1 data disk, size from daemon (50).
+	if rows[1]["kind"] != "data" || rows[1]["size_gb"] != float64(50) {
+		t.Fatalf("data row wrong: %v", rows[1])
+	}
+	// Row 2: vm-2 boot disk, no state entry -> size 0.
+	if rows[2]["vm_id"] != "vm-2" || rows[2]["kind"] != "boot" || rows[2]["size_gb"] != float64(0) {
+		t.Fatalf("vm-2 boot row wrong: %v", rows[2])
 	}
 }
