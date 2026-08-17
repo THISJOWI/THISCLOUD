@@ -189,6 +189,27 @@ export async function listNodes(): Promise<ClusterNode[]> {
   return Array.isArray(data) ? data : [];
 }
 
+export type VmDisk = {
+  vm_id: string;
+  vm_name: string;
+  disk_id?: string;
+  path: string;
+  size_gb?: number;
+  kind: "boot" | "data";
+  vm_status?: string;
+};
+
+export async function listVmDisks(): Promise<VmDisk[]> {
+  const res = await apiFetch("/api/v1/vm-disks");
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "unknown error");
+    console.error(`[api] GET /api/v1/vm-disks failed (${res.status}):`, raw);
+    throw new Error(`API error (status ${res.status})`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function listImages(): Promise<Image[]> {
   const res = await apiFetch("/api/v1/images");
   if (!res.ok) {

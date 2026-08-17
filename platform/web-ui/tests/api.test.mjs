@@ -47,6 +47,31 @@ function startMock() {
         return;
       }
     }
+    if (url.pathname === "/api/v1/vm-disks" && req.method === "GET") {
+      res.end(
+        JSON.stringify([
+          {
+            vm_id: "vm-1",
+            vm_name: "web",
+            disk_id: "",
+            path: "/var/lib/thiscloud/vms/web.qcow2",
+            size_gb: 20,
+            kind: "boot",
+            vm_status: "running",
+          },
+          {
+            vm_id: "vm-1",
+            vm_name: "web",
+            disk_id: "d-1",
+            path: "/data/d1.qcow2",
+            size_gb: 50,
+            kind: "data",
+            vm_status: "running",
+          },
+        ])
+      );
+      return;
+    }
     res.statusCode = 404;
     res.end(JSON.stringify({ error: "not found" }));
   });
@@ -109,6 +134,22 @@ test("delete removes a resource", async () => {
 
     const list = await fetch(`${base}/api/v1/resources/thiscloud_network`);
     assert.equal((await list.json()).length, 0);
+  } finally {
+    server.close();
+  }
+});
+
+test("list VM disks returns boot and data rows", async () => {
+  const { server, base } = await startMock();
+  try {
+    const res = await fetch(`${base}/api/v1/vm-disks`);
+    assert.equal(res.ok, true);
+    const body = await res.json();
+    assert.equal(body.length, 2);
+    assert.equal(body[0].kind, "boot");
+    assert.equal(body[0].size_gb, 20);
+    assert.equal(body[1].kind, "data");
+    assert.equal(body[1].size_gb, 50);
   } finally {
     server.close();
   }
