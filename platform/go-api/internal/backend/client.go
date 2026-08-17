@@ -18,6 +18,22 @@ type Client struct {
 	http    *http.Client
 }
 
+// RejectedError signals that the daemon is reachable but refused the request
+// (HTTP 4xx/5xx). This is distinct from a connectivity error: the orchestrator
+// must not persist desired state the daemon explicitly rejected, or phantom
+// resources accumulate (e.g. a VM targeting an offline node).
+type RejectedError struct {
+	Status string
+	Body   string
+}
+
+func (e *RejectedError) Error() string {
+	if e.Body != "" {
+		return fmt.Sprintf("daemon returned %s: %s", e.Status, e.Body)
+	}
+	return fmt.Sprintf("daemon returned %s", e.Status)
+}
+
 // NewClient returns a Client pointed at the given thiscloudd base URL.
 // The daemon serves its versioned contract under /api/v1 (T0.1).
 func NewClient(baseURL string) *Client {
@@ -67,7 +83,10 @@ func (c *Client) UploadImage(ctx context.Context, id string, data io.Reader) err
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("daemon returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return &RejectedError{
+			Status: resp.Status,
+			Body:   strings.TrimSpace(string(body)),
+		}
 	}
 	return nil
 }
@@ -128,7 +147,10 @@ func (c *Client) request(ctx context.Context, method, path string, body any) err
 
 	if resp.StatusCode >= 400 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("daemon returned %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		return &RejectedError{
+			Status: resp.Status,
+			Body:   strings.TrimSpace(string(data)),
+		}
 	}
 	return nil
 }

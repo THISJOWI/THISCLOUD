@@ -290,9 +290,15 @@ func (s *Server) apply(r *http.Request, res model.Resource) error {
 	for k, v := range res.Attributes() {
 		payload[k] = v
 	}
-	// Ignore failures: with the mock daemon (dev) or unreachable core the
-	// orchestrator still records desired state.
 	if err := s.backend.Create(r.Context(), collection, payload); err != nil {
+		// A daemon that explicitly rejects the request must not leave a
+		// phantom resource in orchestrator state (e.g. a VM pinned to an
+		// offline node). Unreachable daemons (dev/mock) still record desired
+		// state so the orchestrator remains usable without the core.
+		var rejected *backend.RejectedError
+		if errors.As(err, &rejected) {
+			return rejected
+		}
 		log.Printf("warning: daemon create failed: %v", err)
 	}
 	return nil

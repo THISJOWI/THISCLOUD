@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Image, listImages, registerImage, uploadImage } from "@/lib/api";
+import { ClusterNode, Image, listImages, listNodes, registerImage, uploadImage } from "@/lib/api";
 
 type FormState = {
   name: string;
@@ -43,6 +43,7 @@ export function CreateVmModal({
   const [tab, setTab] = useState<(typeof TABS)[number]>("General");
   const [form, setForm] = useState<FormState>(EMPTY);
   const [images, setImages] = useState<Image[]>([]);
+  const [nodes, setNodes] = useState<ClusterNode[]>([]);
   const [importing, setImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [importForm, setImportForm] = useState({
@@ -59,6 +60,7 @@ export function CreateVmModal({
 
   useEffect(() => {
     listImages().then(setImages).catch(() => {});
+    listNodes().then(setNodes).catch(() => {});
   }, []);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -221,14 +223,20 @@ export function CreateVmModal({
                 />
               </div>
               <div>
-                <label className="field-label" htmlFor="vm-node">Node (optional)</label>
-                <input
+                <label className="field-label" htmlFor="vm-node">Node</label>
+                <select
                   id="vm-node"
                   className="form-input"
                   value={form.node}
                   onChange={(e) => set("node", e.target.value)}
-                  placeholder="auto (best-fit scheduler)"
-                />
+                >
+                  <option value="">auto (best-fit scheduler)</option>
+                  {nodes.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.name} ({String(n.state).toLowerCase() === "online" ? "online" : "offline"})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}

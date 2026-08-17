@@ -217,3 +217,46 @@ func TestListNodesProxiesDaemon(t *testing.T) {
 		t.Fatalf("want master first, got %v", nodes[0]["role"])
 	}
 }
+
+// A daemon that explicitly rejects a create (HTTP 5xx) must not leave a
+// phantom resource in orchestrator state — the request fails loudly and the
+// resource stays absent from the store.
+func TestCreateRejectedByDaemonDoesNotPersist(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/vms" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"node worker-1 is not online (state=Offline)"}`))
+	}))
+	defer daemon.Close()
+
+	path := filepath.Join(t.TempDir(), "test.tfstate")
+	store, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	s := NewServer(store, backend.NewClient(daemon.URL))
+
+	body := `{
+		"type": "thiscloud_vm",
+		"id": "vm-offline-node",
+		"name": "phantom",
+		"vcpus": 1,
+		"memory_mb": 1024,
+		"node": "worker-1"
+	}`
+	rec := doJSON(t, s, http.MethodPost, "/api/v1/resources", body)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("create: want 502, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "not online") {
+		t.Fatalf("want daemon error surfaced, got: %s", rec.Body.String())
+	}
+
+	// The rejected resource must not be stored.
+	rec = doJSON(t, s, http.MethodGet, "/api/v1/resources/thiscloud_vm/vm-offline-node", "")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("want 404 (no phantom), got %d", rec.Code)
+	}
+}
