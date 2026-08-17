@@ -34,6 +34,11 @@ impl From<anyhow::Error> for AppError {
             Self::NotFound(msg)
         } else if lower.contains("already exists") || lower.contains("exceeds quota") {
             Self::Conflict(msg)
+        } else if lower.contains("requires") || lower.contains("is required") || lower.contains("must be provided")
+            || lower.contains("must be greater than") || lower.contains("below balloon")
+            || lower.contains("above balloon")
+        {
+            Self::Validation(msg)
         } else {
             Self::Internal(msg)
         }

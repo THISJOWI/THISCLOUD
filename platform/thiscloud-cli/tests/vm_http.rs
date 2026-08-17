@@ -171,3 +171,123 @@ async fn test_cli_vm_delete() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("del1"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_cli_vm_hotplug() {
+    let server = ApiServer::start().await;
+
+    Command::new(cli_bin())
+        .args(["vm", "create", "--name", "hot1"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+
+    // Resolve the server-assigned id.
+    let output = Command::new(cli_bin())
+        .args(["vm", "list"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let hot1_id = stdout
+        .lines()
+        .find(|l| l.contains("hot1"))
+        .and_then(|l| l.split_whitespace().next())
+        .expect("hot1 not found in list");
+
+    // Start it so hotplug runs against a running VM.
+    let output = Command::new(cli_bin())
+        .args(["vm", "start", hot1_id])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Hotplug a blank 10G disk.
+    let output = Command::new(cli_bin())
+        .args(["vm", "hotplug", hot1_id, "disk", "--size-gb", "10"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "disk hotplug failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1 disks"), "expected 1 disk: {}", stdout);
+
+    // Hotplug a NIC.
+    let output = Command::new(cli_bin())
+        .args(["vm", "hotplug", hot1_id, "nic", "--tap", "tap9"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    // Hotplug CPUs to 4.
+    let output = Command::new(cli_bin())
+        .args(["vm", "hotplug", hot1_id, "cpu", "--cpus", "4"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("4 cpus"), "expected 4 cpus: {}", stdout);
+
+    // Invalid resource is rejected.
+    let output = Command::new(cli_bin())
+        .args(["vm", "hotplug", hot1_id, "gpu", "--cpus", "1"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_cli_vm_resize_memory() {
+    let server = ApiServer::start().await;
+
+    let output = Command::new(cli_bin())
+        .args([
+            "vm", "create", "--name", "mem1", "--cpus", "1", "--memory", "2048",
+        ])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let output = Command::new(cli_bin())
+        .args(["vm", "list"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mem1_id = stdout
+        .lines()
+        .find(|l| l.contains("mem1"))
+        .and_then(|l| l.split_whitespace().next())
+        .expect("mem1 not found in list");
+
+    // Resize memory via balloon endpoint (no balloon bounds on a plain VM).
+    let output = Command::new(cli_bin())
+        .args(["vm", "resize-memory", mem1_id, "--target-mb", "4096"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "resize-memory failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("4096 MB"), "expected 4096 MB: {}", stdout);
+
+    // Zero target rejected (validation error).
+    let output = Command::new(cli_bin())
+        .args(["vm", "resize-memory", mem1_id, "--target-mb", "0"])
+        .env("THISCLOUD_API_URL", &server.base_url)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}

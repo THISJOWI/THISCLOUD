@@ -25,6 +25,7 @@ fn test_vm_config_roundtrip() {
         image: String::new(),
         ha: false,
         migrations: 0,
+        balloon: None,
     };
 
     let json = serde_json::to_string(&config).unwrap();

@@ -18,6 +18,18 @@ pub struct DiskConfig {
     pub size_gb: u32,
 }
 
+/// Memory balloon bounds (T1.7): the VM's live memory may be adjusted between
+/// `min_mb` and `max_mb` without a reboot via the hypervisor balloon device.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BalloonConfig {
+    /// Balloon floor — the VM can never drop below this.
+    #[serde(default)]
+    pub min_mb: u32,
+    /// Balloon ceiling — the VM can never grow above this.
+    #[serde(default)]
+    pub max_mb: u32,
+}
+
 /// Point-in-time snapshot of a VM disk.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -30,6 +42,46 @@ pub struct Snapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConsoleInfo {
     pub url: String,
+}
+
+/// Which device class a hotplug operation targets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HotplugResource {
+    Disk,
+    Nic,
+    Cpu,
+}
+
+/// Whether a hotplug operation adds or removes the resource.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HotplugAction {
+    Add,
+    Remove,
+}
+
+/// Unified hotplug request (T1.6): add/remove a disk, NIC or CPUs on a running
+/// VM without a reboot. Field usage depends on `resource`:
+/// - `disk`  — `size_gb` creates a blank qcow2 of that size (a `path` may be
+///   supplied instead); remove targets `id`.
+/// - `nic`   — `tap` names the tap device; remove targets `tap`.
+/// - `cpu`   — `cpus` is the new total (resize); remove is a synonym for add
+///   with a lower count.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HotplugRequest {
+    pub action: HotplugAction,
+    pub resource: HotplugResource,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub size_gb: u32,
+    #[serde(default)]
+    pub tap: String,
+    #[serde(default)]
+    pub cpus: u32,
+    #[serde(default)]
+    pub id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,6 +143,10 @@ pub struct VmConfig {
     /// proves the VM identity — disks, network, IP — survives migration).
     #[serde(default)]
     pub migrations: u64,
+    /// Balloon bounds for live memory adjustment (T1.7). When set, the VM's
+    /// memory may be grown/shrunk in place via the hypervisor balloon device.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balloon: Option<BalloonConfig>,
 }
 
 fn stopped() -> VmStatus {
@@ -129,6 +185,7 @@ impl VmConfig {
             image: String::new(),
             ha: false,
             migrations: 0,
+            balloon: None,
         }
     }
 }

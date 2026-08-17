@@ -47,7 +47,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health check */
+        /** Health check (liveness) */
         get: {
             parameters: {
                 query?: never;
@@ -62,7 +62,85 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @example ok */
+                            status?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness check
+         * @description Reports whether the daemon is ready to serve traffic. Checks the
+         *     dependencies the daemon actually uses: when etcd is configured it must
+         *     answer a maintenance status RPC; in-memory (dev) stores have no
+         *     external dependency and report ready immediately.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ready */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example ready */
+                            status?: string;
+                            /**
+                             * @example {
+                             *       "etcd": true
+                             *     }
+                             */
+                            checks?: {
+                                [key: string]: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Not ready (a dependency is unreachable) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example not_ready */
+                            status?: string;
+                            /**
+                             * @example {
+                             *       "etcd": false
+                             *     }
+                             */
+                            checks?: {
+                                [key: string]: boolean;
+                            };
+                        };
+                    };
                 };
             };
         };
@@ -115,6 +193,133 @@ export interface paths {
                 };
                 /** @description Invalid credentials */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List state snapshots
+         * @description Lists available etcd state snapshots (newest first). Requires a
+         *     daemon backed by etcd; in-memory (dev) stores report no backups.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of snapshots */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SnapshotInfo"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a state snapshot
+         * @description Snapshots the full etcd state to a JSON file on the daemon's backup
+         *     directory and prunes snapshots beyond the configured retention.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Snapshot created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SnapshotInfo"];
+                    };
+                };
+                /** @description Backup requires a persistent (etcd) store */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/backup/{name}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a state snapshot
+         * @description Wipes the current etcd state and replays the snapshot, returning the
+         *     cluster to the captured configuration.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Snapshot restored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SnapshotInfo"];
+                    };
+                };
+                /** @description Invalid snapshot name or unsupported format */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Snapshot not found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -547,6 +752,131 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/vms/{id}/hotplug": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hotplug a device (disk / NIC / CPU) on a running VM
+         * @description Adds or removes a disk, NIC or CPU on a running VM without a reboot
+         *     (T1.6). A disk `add` with `size_gb` creates a blank qcow2 of that size
+         *     and attaches it; a `path` may be supplied instead of creating one. A
+         *     disk `remove` targets the disk `id`. A NIC add/remove targets `tap`. A
+         *     CPU add/remove resizes to the absolute `cpus` count.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "add" | "remove";
+                        /** @enum {string} */
+                        resource: "disk" | "nic" | "cpu";
+                        /** @description Disk path (disk add; optional — size_gb creates one) */
+                        path?: string;
+                        /** @description Blank disk size in GB (disk add) */
+                        size_gb?: number;
+                        /** @description Tap/network name (nic) */
+                        tap?: string;
+                        /** @description Target CPU count (cpu) */
+                        cpus?: number;
+                        /** @description Disk id to remove (disk remove) */
+                        id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Device hotplugged; returns the updated VM */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VmConfig"];
+                    };
+                };
+                400: components["responses"]["ValidationError"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vms/{id}/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resize a VM's memory in place via balloon (T1.7)
+         * @description Adjusts a running VM's live memory within its balloon bounds (min/max)
+         *     without a reboot. Rejected with 400 when the target is outside the
+         *     VM's balloon range or zero.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        target_mb: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Memory resized; returns the updated VM */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VmConfig"];
+                    };
+                };
+                400: components["responses"]["ValidationError"];
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/vms/{id}/disks": {
         parameters: {
             query?: never;
@@ -765,6 +1095,232 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cluster nodes */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Node list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Node"][];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        /** Register a node */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Node"];
+                };
+            };
+            responses: {
+                /** @description Registered */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Node"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Get a node */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Node details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Node"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Remove a node */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/drain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Start or stop draining a node */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        drain: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Node updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Node"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Node agent heartbeat (liveness + usage report) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["ResourceId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["NodeHeartbeat"];
+                };
+            };
+            responses: {
+                /** @description Node refreshed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Node"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1034,6 +1590,836 @@ export interface paths {
                 404: components["responses"]["NotFound"];
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/routers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List virtual routers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Router list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VirtualRouter"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create virtual router */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VirtualRouter"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VirtualRouter"];
+                    };
+                };
+                400: components["responses"]["ValidationError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/routers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** Get virtual router */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Router details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VirtualRouter"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete virtual router */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/dhcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List DHCP/DNS servers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DHCP server list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DhcpServer"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create DHCP/DNS server */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DhcpServer"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DhcpServer"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/dhcp/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** Get DHCP/DNS server */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DHCP server details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DhcpServer"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete DHCP/DNS server */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/floating-ips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List floating IPs */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Floating IP list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FloatingIp"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Allocate floating IP */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FloatingIp"];
+                };
+            };
+            responses: {
+                /** @description Allocated */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FloatingIp"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/network/floating-ips/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** Get floating IP */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Floating IP details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FloatingIp"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Deallocate floating IP */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deallocated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/s3/buckets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List S3 buckets */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Bucket list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["S3Bucket"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create S3 bucket */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["S3Bucket"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["S3Bucket"];
+                    };
+                };
+                409: components["responses"]["QuotaExceeded"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/s3/buckets/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** Get S3 bucket */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Bucket details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["S3Bucket"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete S3 bucket */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/s3/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List S3 access keys */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Access key list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["S3AccessKey"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Issue S3 credentials */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["S3AccessKey"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List registered images */
+        get: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Image list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Image"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Register an image */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Image"];
+                };
+            };
+            responses: {
+                /** @description Registered */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Image"];
+                    };
+                };
+                400: components["responses"]["ValidationError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Show image */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Image details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Image"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete image */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/{id}/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Set image template flag */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        template?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Prometheus metrics scrape endpoint */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Prometheus text exposition */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/metrics/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Push a metric (daemon/UI) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description Tenant scope (required after T0.4 multitenancy) */
+                    "X-Tenant-Id"?: components["parameters"]["TenantId"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Metric"];
+                };
+            };
+            responses: {
+                /** @description Pushed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1388,6 +2774,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SnapshotInfo: {
+            /** @example thiscloud-1786957043.json */
+            name?: string;
+            /** @description Unix timestamp of the snapshot */
+            created_at?: number;
+            size_bytes?: number;
+            /** @description Number of key/value pairs captured */
+            entries?: number;
+        };
         VmConfig: {
             /** Format: uuid */
             id?: string;
@@ -1408,10 +2803,23 @@ export interface components {
             tpm?: boolean;
             /** @description Mark VM as a reusable template */
             template?: boolean;
+            /** @description Placement node ID. Empty means the best-fit scheduler picks it */
+            node?: string;
+            /** @description Scheduler affinity labels (node must carry at least one) */
+            affinity?: string[];
+            /** @description Scheduler anti-affinity labels (node must not carry any) */
+            anti_affinity?: string[];
             /** @enum {string} */
             status?: "running" | "stopped" | "error";
             /** @description Owner tenant (set by server) */
             tenant_id?: string;
+            /** @description Memory balloon bounds for live memory adjustment (T1.7) */
+            balloon?: {
+                /** @description Balloon floor — memory never drops below this */
+                min_mb?: number;
+                /** @description Balloon ceiling — memory never grows above this */
+                max_mb?: number;
+            };
         };
         VmCreate: {
             name: string;
@@ -1427,6 +2835,10 @@ export interface components {
             tpm?: boolean;
             /** @description Mark VM as a reusable template */
             template?: boolean;
+            /** @description Placement node ID. Empty means the best-fit scheduler picks it */
+            node?: string;
+            affinity?: string[];
+            anti_affinity?: string[];
         };
         Snapshot: {
             id: string;
@@ -1442,6 +2854,36 @@ export interface components {
         ConsoleInfo: {
             /** @description WebSocket console endpoint (VNC/vsock proxied by the daemon) */
             url: string;
+        };
+        Node: {
+            /** @description Server-assigned node ID */
+            id?: string;
+            name?: string;
+            /** @enum {string} */
+            role?: "master" | "worker";
+            /** @description ip:port of the node agent */
+            address?: string;
+            hostname?: string;
+            /** @description 0 means unknown/unlimited */
+            cpus_total?: number;
+            cpus_used?: number;
+            /** @description 0 means unknown/unlimited */
+            memory_total_mb?: number;
+            memory_used_mb?: number;
+            vms?: number;
+            /** @enum {string} */
+            state?: "online" | "offline" | "draining";
+            /** @description UNIX epoch of last heartbeat */
+            last_seen_secs?: number;
+            /** @description Seconds without heartbeat before a node goes offline */
+            ttl_secs?: number;
+            /** @description Scheduler affinity/anti-affinity labels */
+            labels?: string[];
+        };
+        NodeHeartbeat: {
+            cpus_used: number;
+            memory_used_mb: number;
+            vms: number;
         };
         Network: {
             /** Format: uuid */
@@ -1492,6 +2934,64 @@ export interface components {
             source: string;
             version?: string;
         };
+        VirtualRouter: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            net_id?: string;
+            external_net_id?: string;
+            /** @default false */
+            ha: boolean;
+            tenant_id?: string;
+            /** @enum {string} */
+            status?: "created" | "deleted";
+        };
+        DhcpServer: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            net_id?: string;
+            pool_start?: string;
+            pool_end?: string;
+            dns?: string[];
+            tenant_id?: string;
+            /** @enum {string} */
+            status?: "created" | "deleted";
+        };
+        FloatingIp: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            ip?: string;
+            vm_id?: string;
+            net_id?: string;
+            tenant_id?: string;
+        };
+        S3Bucket: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            tenant_id?: string;
+            /** @description UNIX epoch seconds */
+            created_at?: number;
+        };
+        S3AccessKey: {
+            access_key?: string;
+            secret_key?: string;
+            user?: string;
+            tenant_id?: string;
+        };
+        Metric: {
+            /** @example thiscloud_vms */
+            name: string;
+            /** Format: double */
+            value: number;
+            /** @enum {string} */
+            metric_type: "counter" | "gauge";
+            labels?: {
+                [key: string]: string;
+            };
+        };
         /** @description Per-tenant resource limits. 0 means unlimited. */
         TenantQuota: {
             tenant_id: string;
@@ -1528,6 +3028,28 @@ export interface components {
             tenant_id?: string;
             /** @description Unix timestamp */
             expires_at?: number;
+        };
+        Image: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            /** @description Artifact location (HTTP(S) URL or local pool path) */
+            source?: string;
+            /** @description Expected/verified digest at import time */
+            sha256?: string;
+            /** Format: int64 */
+            size_bytes?: number;
+            /** @enum {string} */
+            format?: "qcow2" | "iso" | "raw" | "cloud-init";
+            /** @enum {string} */
+            os_family?: "generic" | "alma" | "ubuntu" | "debian" | "fedora" | "rocky";
+            version?: string;
+            /** @description Reusable as a VM template */
+            template?: boolean;
+            /** @enum {string} */
+            status?: "available" | "importing" | "error";
+            /** @description Owner tenant (set by server) */
+            tenant_id?: string;
         };
         Error: {
             error?: string;

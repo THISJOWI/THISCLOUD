@@ -1,11 +1,16 @@
-use crate::compute::vm::{ConsoleInfo, DiskConfig, Snapshot, VmConfig, VmStatus};
+use crate::compute::vm::{
+    ConsoleInfo, DiskConfig, HotplugAction, HotplugRequest, HotplugResource, Snapshot, VmConfig,
+    VmStatus,
+};
 use crate::compute::vmstore::VmStore;
 use crate::compute::HypervisorBackend;
 use crate::core::{Event, EventBus};
 use crate::image::ImageModule;
+use crate::metrics::MetricRegistry;
 use crate::node::{model::NodeState, NodeModule};
 use crate::quota::model::ResourceDelta;
 use crate::quota::QuotaModule;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -16,6 +21,7 @@ pub struct ComputeModule {
     quota: Option<Arc<Mutex<QuotaModule>>>,
     nodes: Option<Arc<Mutex<NodeModule>>>,
     images: Option<Arc<Mutex<ImageModule>>>,
+    metrics: Option<Arc<MetricRegistry>>,
     ha_enabled: bool,
     ha_quorum: u32,
 }
@@ -28,6 +34,7 @@ impl ComputeModule {
             quota: None,
             nodes: None,
             images: None,
+            metrics: None,
             ha_enabled: false,
             ha_quorum: 0,
         }
@@ -56,6 +63,13 @@ impl ComputeModule {
     /// Enable image resolution for this module (T1.2 image registry).
     pub fn with_images(mut self, images: Arc<Mutex<ImageModule>>) -> Self {
         self.images = Some(images);
+        self
+    }
+
+    /// Enable metric publication for this module (T5.1). Lets the balloon
+    /// memory endpoint surface per-VM gauges for the auto-scaler trigger.
+    pub fn with_metrics(mut self, metrics: Arc<MetricRegistry>) -> Self {
+        self.metrics = Some(metrics);
         self
     }
 
@@ -295,6 +309,80 @@ impl ComputeModule {
         Ok(vm)
     }
 
+    /// Adjust a VM's live memory within its balloon bounds (T1.7). Growing or
+    /// shrinking honours `vm.balloon` (min/max) and keeps the node reservation
+    /// in sync so overcommitted hosts are not oversubscribed.
+    pub async fn resize_memory(
+        &mut self,
+        tenant_id: &str,
+        id: &str,
+        target_mb: u32,
+    ) -> anyhow::Result<VmConfig> {
+        if target_mb == 0 {
+            anyhow::bail!("target_mb must be greater than 0");
+        }
+        let mut vm = self.get_vm(tenant_id, id).await?;
+        if let Some(balloon) = &vm.balloon {
+            if target_mb < balloon.min_mb {
+                anyhow::bail!(
+                    "target {} MB below balloon min {} MB for VM {}",
+                    target_mb,
+                    balloon.min_mb,
+                    vm.name
+                );
+            }
+            if target_mb > balloon.max_mb {
+                anyhow::bail!(
+                    "target {} MB above balloon max {} MB for VM {}",
+                    target_mb,
+                    balloon.max_mb,
+                    vm.name
+                );
+            }
+        }
+        if vm.memory_mb == target_mb {
+            return Ok(vm);
+        }
+        let old_mb = vm.memory_mb;
+        if vm.status == VmStatus::Running {
+            self.backend.resize_memory(&vm, target_mb).await?;
+        }
+        // Keep the node's reserved capacity honest for the delta.
+        if let Some(nodes) = self.nodes.clone() {
+            let mut nodes = nodes.lock().await;
+            if vm.node.is_empty() {
+                // no-op
+            } else if target_mb > old_mb {
+                nodes
+                    .reserve(&vm.node, 0, target_mb - old_mb)
+                    .await?;
+            } else {
+                nodes
+                    .release(&vm.node, 0, old_mb - target_mb)
+                    .await?;
+            }
+        }
+        vm.memory_mb = target_mb;
+        self.store.put(tenant_id, &vm).await?;
+        if let Some(registry) = &self.metrics {
+            let mut labels = BTreeMap::new();
+            labels.insert("vm_id".to_string(), vm.id.clone());
+            labels.insert("vm_name".to_string(), vm.name.clone());
+            registry.set_gauge(
+                "thiscloud_vm_memory_mb",
+                target_mb as f64,
+                labels,
+            );
+        }
+        tracing::info!(
+            "VM memory resized via balloon: {} -> {} MB (was {})",
+            vm.name,
+            target_mb,
+            old_mb
+        );
+        Ok(vm)
+    }
+
     /// Hot or cold attach of an extra data disk.
     pub async fn attach_disk(
         &mut self,
@@ -383,6 +471,71 @@ impl ComputeModule {
         let vm = self.get_vm(tenant_id, id).await?;
         let url = self.backend.console_url(&vm).await?;
         Ok(ConsoleInfo { url })
+    }
+
+    // ── T1.6: unified device hotplug (disk / NIC / CPU) ──────────────
+
+    /// Add or remove a disk, NIC or CPUs on a running VM without a reboot.
+    /// Dispatches to the fine-grained operations so the VM config (persisted
+    /// in the store) and the hypervisor stay in sync.
+    pub async fn hotplug_vm(
+        &mut self,
+        tenant_id: &str,
+        id: &str,
+        req: &HotplugRequest,
+    ) -> anyhow::Result<VmConfig> {
+        match req.resource {
+            HotplugResource::Disk => match req.action {
+                HotplugAction::Add => {
+                    if req.path.is_empty() && req.size_gb == 0 {
+                        anyhow::bail!("disk hotplug requires path or size_gb");
+                    }
+                    let mut disk = DiskConfig {
+                        id: format!("dsk-{}", Uuid::new_v4()),
+                        path: req.path.clone(),
+                        size_gb: req.size_gb,
+                    };
+                    if disk.path.is_empty() {
+                        let vm = self.get_vm(tenant_id, id).await?;
+                        disk.path = format!(
+                            "/var/lib/thiscloud/vms/{}-{}.qcow2",
+                            vm.name, disk.id
+                        );
+                        self.backend.create_disk(&disk.path, disk.size_gb).await?;
+                    }
+                    self.attach_disk(tenant_id, id, disk).await?;
+                }
+                HotplugAction::Remove => {
+                    if req.id.is_empty() {
+                        anyhow::bail!("disk hotplug remove requires id");
+                    }
+                    self.detach_disk(tenant_id, id, &req.id).await?;
+                }
+            },
+            HotplugResource::Nic => match req.action {
+                HotplugAction::Add => {
+                    if req.tap.is_empty() {
+                        anyhow::bail!("nic hotplug requires tap");
+                    }
+                    self.attach_nic(tenant_id, id, &req.tap).await?;
+                }
+                HotplugAction::Remove => {
+                    if req.tap.is_empty() {
+                        anyhow::bail!("nic hotplug remove requires tap");
+                    }
+                    self.detach_nic(tenant_id, id, &req.tap).await?;
+                }
+            },
+            HotplugResource::Cpu => match req.action {
+                HotplugAction::Add | HotplugAction::Remove => {
+                    if req.cpus == 0 {
+                        anyhow::bail!("cpu hotplug requires cpus");
+                    }
+                    self.resize_vm(tenant_id, id, req.cpus, 0).await?;
+                }
+            },
+        }
+        self.get_vm(tenant_id, id).await
     }
 
     // ── T1.4: HA — live migration + automatic failover ──────────────

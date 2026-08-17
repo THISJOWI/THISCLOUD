@@ -1,6 +1,6 @@
 use crate::auth::rbac::{CreateSet, ReadSet, RequireRole, WriteSet};
 use crate::auth::TenantContext;
-use crate::compute::vm::{ConsoleInfo, DiskConfig, VmConfig};
+use crate::compute::vm::{ConsoleInfo, DiskConfig, HotplugRequest, VmConfig};
 use crate::compute::ComputeModule;
 use crate::core::AppError;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -69,6 +69,11 @@ pub struct MigrateReq {
     pub target_node: String,
 }
 
+#[derive(Deserialize)]
+pub struct MemoryReq {
+    pub target_mb: u32,
+}
+
 pub fn app(state: ApiState) -> Router {
     let read = Router::new()
         .route("/vms", get(list_vms))
@@ -87,7 +92,9 @@ pub fn app(state: ApiState) -> Router {
         .route("/vms/:id/restore", post(restore_vm))
         .route("/vms/:id/clone", post(clone_vm))
         .route("/vms/:id/resize", post(resize_vm))
+        .route("/vms/:id/memory", post(resize_memory_vm))
         .route("/vms/:id/migrate", post(migrate_vm))
+        .route("/vms/:id/hotplug", post(hotplug_vm))
         .route("/vms/:id/disks", put(attach_disk))
         .route("/vms/:id/disks/:disk_id", delete(detach_disk))
         .route("/vms/:id/nics", put(attach_nic))
@@ -238,6 +245,30 @@ async fn migrate_vm(
     let vm = module
         .migrate_vm(&ctx.tenant_id, &id, &req.target_node)
         .await?;
+    Ok(Json(vm))
+}
+
+async fn resize_memory_vm(
+    State(state): State<ApiState>,
+    ctx: TenantContext,
+    Path(id): Path<String>,
+    Json(req): Json<MemoryReq>,
+) -> Result<Json<VmConfig>, AppError> {
+    let mut module = state.module.lock().await;
+    let vm = module
+        .resize_memory(&ctx.tenant_id, &id, req.target_mb)
+        .await?;
+    Ok(Json(vm))
+}
+
+async fn hotplug_vm(
+    State(state): State<ApiState>,
+    ctx: TenantContext,
+    Path(id): Path<String>,
+    Json(req): Json<HotplugRequest>,
+) -> Result<Json<VmConfig>, AppError> {
+    let mut module = state.module.lock().await;
+    let vm = module.hotplug_vm(&ctx.tenant_id, &id, &req).await?;
     Ok(Json(vm))
 }
 

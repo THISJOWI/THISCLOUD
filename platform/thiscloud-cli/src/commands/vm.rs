@@ -99,6 +99,14 @@ pub enum VmCommands {
         #[arg(long, default_value = "0")]
         memory: u32,
     },
+    /// Adjust a running VM's memory via balloon within its bounds (T1.7)
+    ResizeMemory {
+        /// VM ID or name
+        vm: String,
+        /// Target memory in MB (must be within the VM's balloon bounds)
+        #[arg(long)]
+        target_mb: u32,
+    },
     /// Live-migrate a VM to another cluster node (HA)
     Migrate {
         /// VM ID or name
@@ -146,6 +154,31 @@ pub enum VmCommands {
     Console {
         /// VM ID or name
         vm: String,
+    },
+    /// Hotplug a device (disk / NIC / CPU) on a running VM without reboot
+    Hotplug {
+        /// VM ID or name
+        vm: String,
+        /// Device to add/remove: disk, nic or cpu
+        resource: String,
+        /// add or remove
+        #[arg(long, default_value = "add")]
+        action: String,
+        /// Disk path (optional; size_gb creates a new blank qcow2)
+        #[arg(long)]
+        path: Option<String>,
+        /// Disk size in GB (creates a new blank disk)
+        #[arg(long)]
+        size_gb: Option<u32>,
+        /// Tap/network name for a NIC
+        #[arg(long)]
+        tap: Option<String>,
+        /// Target CPU count for a CPU hotplug
+        #[arg(long)]
+        cpus: Option<u32>,
+        /// Disk ID to remove
+        #[arg(long)]
+        id: Option<String>,
     },
     /// Start a VM
     Start {
@@ -341,6 +374,23 @@ pub async fn run_vm_command(command: VmCommands) -> anyhow::Result<()> {
             }
             println!("VM resized: {}", vm);
         }
+        VmCommands::ResizeMemory { vm, target_mb } => {
+            let resp = client
+                .post(format!("{}/vms/{}/memory", base, vm))
+                .json(&json!({ "target_mb": target_mb }))
+                .send()
+                .await?;
+            if !resp.status().is_success() {
+                let msg = api_error_message(resp).await;
+                anyhow::bail!("API error: {}", msg);
+            }
+            let v: serde_json::Value = resp.json().await?;
+            println!(
+                "VM memory resized via balloon: {} -> {} MB",
+                vm,
+                v["memory_mb"].as_u64().unwrap_or(target_mb as u64)
+            );
+        }
         VmCommands::Migrate { vm, target_node } => {
             let resp = client
                 .post(format!("{}/vms/{}/migrate", base, vm))
@@ -352,6 +402,62 @@ pub async fn run_vm_command(command: VmCommands) -> anyhow::Result<()> {
                 anyhow::bail!("API error: {}", msg);
             }
             println!("VM migrated: {} -> {}", vm, target_node);
+        }
+        VmCommands::Hotplug {
+            vm,
+            resource,
+            action,
+            path,
+            size_gb,
+            tap,
+            cpus,
+            id,
+        } => {
+            let resource = resource.to_lowercase();
+            if !["disk", "nic", "cpu"].contains(&resource.as_str()) {
+                anyhow::bail!("resource must be disk, nic or cpu (got '{}')", resource);
+            }
+            let action = action.to_lowercase();
+            if !["add", "remove"].contains(&action.as_str()) {
+                anyhow::bail!("action must be add or remove (got '{}')", action);
+            }
+            let mut body = serde_json::Map::new();
+            body.insert("resource".into(), json!(resource));
+            body.insert("action".into(), json!(action));
+            if let Some(p) = path {
+                body.insert("path".into(), json!(p));
+            }
+            if let Some(s) = size_gb {
+                body.insert("size_gb".into(), json!(s));
+            }
+            if let Some(t) = tap {
+                body.insert("tap".into(), json!(t));
+            }
+            if let Some(c) = cpus {
+                body.insert("cpus".into(), json!(c));
+            }
+            if let Some(i) = id {
+                body.insert("id".into(), json!(i));
+            }
+            let resp = client
+                .post(format!("{}/vms/{}/hotplug", base, vm))
+                .json(&body)
+                .send()
+                .await?;
+            if !resp.status().is_success() {
+                let msg = api_error_message(resp).await;
+                anyhow::bail!("API error: {}", msg);
+            }
+            let v: serde_json::Value = resp.json().await?;
+            println!(
+                "Hotplugged {} {} on {} (now {} cpus, {} disks, {} nics)",
+                action,
+                resource,
+                vm,
+                v["cpus"].as_u64().unwrap_or(0),
+                v["disks"].as_array().map(|d| d.len()).unwrap_or(0),
+                v["networks"].as_array().map(|n| n.len()).unwrap_or(0),
+            );
         }
         VmCommands::AttachDisk {
             vm,

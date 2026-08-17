@@ -29,12 +29,64 @@ paths:
                 type: string
   /api/v1/healthz:
     get:
-      summary: Health check
+      summary: Health check (liveness)
       tags: [System]
       security: []
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/v1/ready:
+    get:
+      summary: Readiness check
+      description: |
+        Reports whether the daemon is ready to serve traffic. Checks the
+        dependencies the daemon actually uses: when etcd is configured it must
+        answer a maintenance status RPC; in-memory (dev) stores have no
+        external dependency and report ready immediately.
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+                    example:
+                      etcd: true
+        "503":
+          description: Not ready (a dependency is unreachable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_ready
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+                    example:
+                      etcd: false
 
   # ── Auth ──────────────────────────────────────────────
   /api/v1/auth/login:
@@ -59,6 +111,64 @@ paths:
           description: Missing username or password
         "401":
           description: Invalid credentials
+
+  # ── Backup ────────────────────────────────────────────
+  /api/v1/backup:
+    get:
+      summary: List state snapshots
+      description: |
+        Lists available etcd state snapshots (newest first). Requires a
+        daemon backed by etcd; in-memory (dev) stores report no backups.
+      tags: [System]
+      responses:
+        "200":
+          description: List of snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SnapshotInfo"
+    post:
+      summary: Create a state snapshot
+      description: |
+        Snapshots the full etcd state to a JSON file on the daemon's backup
+        directory and prunes snapshots beyond the configured retention.
+      tags: [System]
+      responses:
+        "201":
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotInfo"
+        "400":
+          description: Backup requires a persistent (etcd) store
+
+  /api/v1/backup/{name}/restore:
+    post:
+      summary: Restore a state snapshot
+      description: |
+        Wipes the current etcd state and replays the snapshot, returning the
+        cluster to the captured configuration.
+      tags: [System]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Snapshot restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotInfo"
+        "400":
+          description: Invalid snapshot name or unsupported format
+        "404":
+          description: Snapshot not found
 
   # ── VMs ──────────────────────────────────────────────
   /api/v1/vms:
@@ -285,6 +395,100 @@ paths:
       responses:
         "200":
           description: VM resized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/hotplug:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Hotplug a device (disk / NIC / CPU) on a running VM
+      description: |
+        Adds or removes a disk, NIC or CPU on a running VM without a reboot
+        (T1.6). A disk `add` with `size_gb` creates a blank qcow2 of that size
+        and attaches it; a `path` may be supplied instead of creating one. A
+        disk `remove` targets the disk `id`. A NIC add/remove targets `tap`. A
+        CPU add/remove resizes to the absolute `cpus` count.
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, resource]
+              properties:
+                action:
+                  type: string
+                  enum: [add, remove]
+                resource:
+                  type: string
+                  enum: [disk, nic, cpu]
+                path:
+                  type: string
+                  description: Disk path (disk add; optional — size_gb creates one)
+                size_gb:
+                  type: integer
+                  description: Blank disk size in GB (disk add)
+                tap:
+                  type: string
+                  description: Tap/network name (nic)
+                cpus:
+                  type: integer
+                  description: Target CPU count (cpu)
+                id:
+                  type: string
+                  description: Disk id to remove (disk remove)
+      responses:
+        "200":
+          description: Device hotplugged; returns the updated VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VmConfig"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/vms/{id}/memory:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      summary: Resize a VM's memory in place via balloon (T1.7)
+      description: |
+        Adjusts a running VM's live memory within its balloon bounds (min/max)
+        without a reboot. Rejected with 400 when the target is outside the
+        VM's balloon range or zero.
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_mb]
+              properties:
+                target_mb:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Memory resized; returns the updated VM
           content:
             application/json:
               schema:
@@ -1321,6 +1525,20 @@ components:
         format: uuid
 
   schemas:
+    SnapshotInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: thiscloud-1786957043.json
+        created_at:
+          type: integer
+          description: Unix timestamp of the snapshot
+        size_bytes:
+          type: integer
+        entries:
+          type: integer
+          description: Number of key/value pairs captured
     VmConfig:
       type: object
       properties:
@@ -1385,6 +1603,16 @@ components:
         tenant_id:
           type: string
           description: Owner tenant (set by server)
+        balloon:
+          type: object
+          description: Memory balloon bounds for live memory adjustment (T1.7)
+          properties:
+            min_mb:
+              type: integer
+              description: Balloon floor — memory never drops below this
+            max_mb:
+              type: integer
+              description: Balloon ceiling — memory never grows above this
 
     VmCreate:
       type: object

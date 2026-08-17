@@ -15,10 +15,16 @@ pub trait HypervisorBackend: Send + Sync {
     async fn clone(&self, source: &VmConfig, target: &VmConfig) -> anyhow::Result<()>;
     /// Hot-resize a running VM; on stopped VMs only the config is updated.
     async fn resize(&self, vm: &VmConfig, cpus: u32, memory_mb: u32) -> anyhow::Result<()>;
+    /// Adjust a running VM's memory in place via the balloon device (T1.7).
+    /// `target_mb` must be inside the VM's balloon bounds.
+    async fn resize_memory(&self, vm: &VmConfig, target_mb: u32) -> anyhow::Result<()>;
     /// Hot-attach a data disk to a running VM.
     async fn attach_disk(&self, vm: &VmConfig, disk: &DiskConfig) -> anyhow::Result<()>;
     /// Hot-detach a data disk from a running VM.
     async fn detach_disk(&self, vm: &VmConfig, disk_id: &str) -> anyhow::Result<()>;
+    /// Create a blank data disk image (`size_gb` GiB) for hotplug (T1.6). When
+    /// the VM is running the disk is created offline and then attached.
+    async fn create_disk(&self, path: &str, size_gb: u32) -> anyhow::Result<()>;
     /// Hot-attach a NIC to a running VM.
     async fn attach_nic(&self, vm: &VmConfig, tap: &str) -> anyhow::Result<()>;
     /// Hot-detach a NIC from a running VM.
@@ -104,11 +110,19 @@ impl HypervisorBackend for MockHypervisor {
         Ok(())
     }
 
+    async fn resize_memory(&self, _vm: &VmConfig, _target_mb: u32) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn attach_disk(&self, _vm: &VmConfig, _disk: &DiskConfig) -> anyhow::Result<()> {
         Ok(())
     }
 
     async fn detach_disk(&self, _vm: &VmConfig, _disk_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn create_disk(&self, _path: &str, _size_gb: u32) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -168,8 +182,20 @@ impl HypervisorBackend for CloudHypervisor {
         cmd.arg("--cpus")
             .arg(format!("boot={}", vm.cpus))
             .arg("--memory")
-            .arg(format!("size={}M", vm.memory_mb))
-            .arg("--disk")
+            .arg(format!("size={}M", vm.memory_mb));
+        if let Some(b) = &vm.balloon {
+            // T1.7 balloon bounds: start at `size`, hotplug-able up to
+            // `hotplug_size`; `--balloon deflate-on-oom` enables live
+            // grow/shrink of the guest's memory without a reboot.
+            cmd.arg("--memory")
+                .arg(format!(
+                    "size={}M,hotplug_size={}M",
+                    vm.memory_mb, b.max_mb
+                ))
+                .arg("--balloon")
+                .arg("deflate-on-oom");
+        }
+        cmd.arg("--disk")
             .arg(format!("path={}", vm.disk_path));
         if !vm.kernel.is_empty() {
             cmd.arg("--kernel").arg(&vm.kernel);
@@ -296,6 +322,21 @@ impl HypervisorBackend for CloudHypervisor {
         Ok(())
     }
 
+    async fn resize_memory(&self, vm: &VmConfig, target_mb: u32) -> anyhow::Result<()> {
+        let status = Command::new("cloud-hypervisor")
+            .arg("--api-socket")
+            .arg(Self::socket(vm))
+            .arg("resize")
+            .arg("--memory")
+            .arg(format!("size={}M", target_mb))
+            .status()
+            .await?;
+        if !status.success() {
+            anyhow::bail!("cloud-hypervisor memory resize (balloon) failed: {:?}", status);
+        }
+        Ok(())
+    }
+
     async fn attach_disk(&self, vm: &VmConfig, disk: &DiskConfig) -> anyhow::Result<()> {
         let status = Command::new("cloud-hypervisor")
             .arg("--api-socket")
@@ -321,6 +362,21 @@ impl HypervisorBackend for CloudHypervisor {
             .await?;
         if !status.success() {
             anyhow::bail!("cloud-hypervisor remove-disk failed: {:?}", status);
+        }
+        Ok(())
+    }
+
+    async fn create_disk(&self, path: &str, size_gb: u32) -> anyhow::Result<()> {
+        let status = Command::new("qemu-img")
+            .arg("create")
+            .arg("-f")
+            .arg("qcow2")
+            .arg(path)
+            .arg(format!("{}G", size_gb))
+            .status()
+            .await?;
+        if !status.success() {
+            anyhow::bail!("qemu-img create failed: {:?}", status);
         }
         Ok(())
     }
