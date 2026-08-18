@@ -1,0 +1,29 @@
+{
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "prerelease": true,
+  "prerelease-type": "alpha",
+  "packages": {
+    "platform": {
+      "release-type": "rust",
+      "component": "platform",
+      "package-name": "thiscloud-platform"
+    },
+    "platform/web-ui": {
+      "release-type": "node",
+      "component": "web-ui",
+      "package-name": "thiscloud-web"
+    }
+  },
+  "plugins": [
+    {
+      "type": "cargo-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "thiscloud",
+      "components": ["platform", "web-ui"]
+    }
+  ]
+}
