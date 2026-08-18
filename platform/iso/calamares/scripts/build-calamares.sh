@@ -27,7 +27,7 @@ fi
 
 echo "==> fetching kpmcore $KPMCORE_VER"
 if [ ! -d "$SRC/kpmcore" ]; then
-  curl -fsSL "https://invent.kde.org/libs/kpmcore/-/archive/v${KPMCORE_VER}/kpmcore-v${KPMCORE_VER}.tar.gz" -o "$WORK/kpmcore.tar.gz"
+  curl -fsSL "https://github.com/KDE/kpmcore/archive/refs/tags/v${KPMCORE_VER}.tar.gz" -o "$WORK/kpmcore.tar.gz"
   tar -xzf "$WORK/kpmcore.tar.gz" -C "$SRC"
   mv "$SRC/kpmcore-v${KPMCORE_VER}" "$SRC/kpmcore"
 fi
