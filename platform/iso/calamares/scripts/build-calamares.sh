@@ -103,7 +103,7 @@ test -f "$STAGING/etc/calamares/modules/partition.conf" && echo "  partition.con
 echo "==> packaging staging root into RPMs"
 RPMROOT="$WORK/rpm"
 mkdir -p "$RPMROOT"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-REPO_RPMS="${THISCLOUD_REPO_RPMS:-$(cd "$(pwd)/.." && pwd)/repo}"  # platform/iso/repo — createrepo'd repo
+REPO_RPMS="${THISCLOUD_REPO_RPMS:-$(cd "$(pwd)/.." && pwd)/repo/thiscloud}"  # platform/iso/repo/thiscloud — createrepo'd dnf repo
 
 rpmbuild_spec() { # $1=name $2=version $3=summary
   cat > "$RPMROOT/SPECS/$1.spec" <<EOF

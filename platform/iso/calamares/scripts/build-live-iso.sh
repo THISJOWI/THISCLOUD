@@ -14,24 +14,31 @@ LOCAL_REPO="${LOCAL_REPO:-/data/thiscloud-repo}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CALAMAES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ISO_REPO="$(cd "$CALAMAES_DIR/.." && pwd)/repo"   # existing THISCLOUD RPM repo
+# The dnf repo root is the thiscloud/ subdir: createrepo_c runs on it in
+# build-iso.sh step [7] (RPM_DIR=iso/repo/thiscloud), so that's where the
+# RPMs + repodata/ live. The repo/ root holds binaries (cloud-hypervisor,
+# thiscloud-api, etc.) and web-ui/, not RPM metadata.
+REPO_DIR="$ISO_REPO/thiscloud"
 
 echo "==> building THISCLOUD live ISO"
 mkdir -p "$OUT"
 
 # 1. Build Calamares + KPMcore (from source) and package them as RPMs
-#    into the local THISCLOUD repo (iso/repo).
-if [ ! -f "$ISO_REPO/repodata/repomd.xml" ]; then
-  echo "ERROR: $ISO_REPO is not a dnf repo (no repodata/). Run build-iso.sh step [1-4] first." >&2
+#    into the local THISCLOUD repo (iso/repo/thiscloud).
+if [ ! -f "$REPO_DIR/repodata/repomd.xml" ]; then
+  echo "ERROR: $REPO_DIR is not a dnf repo (no repodata/). Run build-iso.sh step [7] first (createrepo_c on iso/repo/thiscloud)." >&2
   exit 1
 fi
-THISCLOUD_REPO_RPMS="$ISO_REPO" bash "$SCRIPT_DIR/build-calamares.sh" "$LIVE_ROOT"
+THISCLOUD_REPO_RPMS="$REPO_DIR" bash "$SCRIPT_DIR/build-calamares.sh" "$LIVE_ROOT"
 
 # 2. Point live.ks at a host-visible repo. livemedia-creator runs with
 #    --no-virt, so the file:// baseurl is reachable from the host.
+#    live.ks baseurl is file:///data/thiscloud-repo — copy the dnf repo
+#    root (thiscloud/) so dnf sees repodata/ + RPMs at the URL root.
 mkdir -p "$(dirname "$LOCAL_REPO")"
-if [ "$(readlink -f "$ISO_REPO")" != "$(readlink -f "$LOCAL_REPO")" ]; then
+if [ "$(readlink -f "$REPO_DIR")" != "$(readlink -f "$LOCAL_REPO")" ]; then
   rm -rf "$LOCAL_REPO"
-  cp -a "$ISO_REPO"/. "$LOCAL_REPO"/
+  cp -a "$REPO_DIR"/. "$LOCAL_REPO"/
 fi
 # Builder-verified detail: if no-virt dnf can't reach the host file:// URL,
 # serve it over http instead — `python3 -m http.server 8080 -d "$LOCAL_REPO"`
