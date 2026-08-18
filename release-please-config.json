@@ -3,9 +3,26 @@
   "bump-minor-pre-major": true,
   "packages": {
     "platform": {
-      "release-type": "rust",
+      "release-type": "simple",
       "component": "platform",
-      "package-name": "thiscloud-platform"
+      "package-name": "thiscloud-platform",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value==\"thiscloudd\")].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value==\"thiscloud-cli\")].version"
+        }
+      ]
     },
     "platform/web-ui": {
       "release-type": "node",
@@ -14,10 +31,6 @@
     }
   },
   "plugins": [
-    {
-      "type": "cargo-workspace",
-      "merge": false
-    },
     {
       "type": "linked-versions",
       "groupName": "thiscloud",
