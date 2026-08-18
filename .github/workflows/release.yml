@@ -2,8 +2,7 @@ name: release
 
 on:
   push:
-    branches:
-      - "release-*"
+    tags: ["v*"]
 
 permissions:
   contents: write
@@ -16,59 +15,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - name: Install protoc + etcd
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler etcd-server
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: platform
-      - run: cargo test --workspace
-        working-directory: platform
-      - run: cargo clippy --all-targets -- -D warnings
-        working-directory: platform
-
-  go:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-      - run: go test ./...
-        working-directory: platform/go-api
-
-  web-ui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm ci
-        working-directory: platform/web-ui
-      - run: npm test
-        working-directory: platform/web-ui
-      - run: npm run lint
-        working-directory: platform/web-ui
-
-  openapi:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Lint OpenAPI spec
-        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml -r .spectral.yaml -F error
-
   build-and-publish:
-    needs: [rust, go, web-ui, openapi]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -96,20 +43,12 @@ jobs:
           cache: npm
           cache-dependency-path: platform/web-ui/package-lock.json
 
-      - name: Derive version from branch
+      - name: Derive version from tag
         id: version
         run: |
-          # Branch name carries the version: release-v0.2.0 -> 0.2.0
-          VERSION="${GITHUB_REF_NAME#release-v}"
+          VERSION="${GITHUB_REF_NAME#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
-
-      - name: Patch workspace version
-        working-directory: platform
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/^version = \".*\"$/version = \"$VERSION\"/" Cargo.toml
-          grep '^version' Cargo.toml
 
       - name: Cross-compile Rust (musl)
         working-directory: platform
@@ -192,7 +131,7 @@ jobs:
           console.log(JSON.stringify(manifest, null, 2));
           EOF
 
-      - name: Create GitHub Release
+      - name: Upload assets to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}

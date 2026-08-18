@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install protoc + etcd
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler etcd-server
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: platform
+      - run: cargo test --workspace
+        working-directory: platform
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: platform
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go test ./...
+        working-directory: platform/go-api
+
+  web-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: platform/web-ui
+      - run: npm test
+        working-directory: platform/web-ui
+      - run: npm run lint
+        working-directory: platform/web-ui
+
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Lint OpenAPI spec
+        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml -r .spectral.yaml -F error
