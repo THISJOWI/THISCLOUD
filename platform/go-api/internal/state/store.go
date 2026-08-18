@@ -17,15 +17,15 @@ var ErrNotFound = errors.New("not found")
 // deliberately shaped like a Terraform state file so the API can be surfaced
 // through a Terraform provider later.
 type StateFile struct {
-	Version   int                       `json:"version"`
-	Resources []model.Resource          `json:"resources"`
+	Version   int              `json:"version"`
+	Resources []model.Resource `json:"resources"`
 }
 
 // Store is a thread-safe, JSON-persisted state store.
 type Store struct {
-	mu    sync.RWMutex
-	path  string
-	file  StateFile
+	mu   sync.RWMutex
+	path string
+	file StateFile
 }
 
 // NewStore creates a store backed by the given file path. If the file does not
@@ -53,7 +53,7 @@ func (s *Store) load() error {
 	// Unmarshal into a raw map first so we can route each entry to the
 	// concrete model type by its declared type.
 	var raw struct {
-		Version   int             `json:"version"`
+		Version   int               `json:"version"`
 		Resources []json.RawMessage `json:"resources"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -165,6 +165,22 @@ func (s *Store) List(t model.ResourceType) ([]model.Resource, error) {
 		}
 	}
 	return out, nil
+}
+
+// Replace swaps the entry carrying oldID for r, persisting the change. It is
+// used to reconcile a resource whose persisted id diverged from the daemon's
+// (legacy entries backfilled with a placeholder uuid on load): the orchestrator
+// adopts the daemon's real id so lifecycle calls address the same VM.
+func (s *Store) Replace(oldID string, r model.Resource) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, existing := range s.file.Resources {
+		if existing.ID() == oldID {
+			s.file.Resources[i] = r
+			return s.persist()
+		}
+	}
+	return ErrNotFound
 }
 
 // Delete removes the resource with the given id.

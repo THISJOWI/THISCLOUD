@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -136,6 +137,28 @@ func (c *Client) StartVM(ctx context.Context, id string) error {
 // StopVM sends a POST to the daemon to stop a VM.
 func (c *Client) StopVM(ctx context.Context, id string) error {
 	return c.request(ctx, http.MethodPost, fmt.Sprintf("vms/%s/stop", id), nil)
+}
+
+// Proxy forwards an arbitrary request to the daemon and returns the raw HTTP
+// response. It backs the API's catch-all daemon proxy so every endpoint the
+// daemon serves (node lifecycle, VM snapshot/clone/resize/migrate/hotplug,
+// image delete/template, routers, DHCP, floating IPs, quotas, audit, backups,
+// S3, marketplace, metrics) is reachable through the orchestrator without a
+// dedicated typed handler. The caller streams the response body back to its
+// own client; nothing is buffered here.
+func (c *Client) Proxy(ctx context.Context, method, rest string, query url.Values, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/"+strings.TrimPrefix(rest, "/"), body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	req.Header.Set("Content-Type", contentType)
+	if query != nil {
+		req.URL.RawQuery = query.Encode()
+	}
+	return c.http.Do(req)
 }
 
 // list performs a GET on a daemon collection and decodes the JSON array.

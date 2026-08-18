@@ -6,11 +6,13 @@ import "@xterm/xterm/css/xterm.css";
 import { listResources, Resource } from "@/lib/api";
 import { ContextHeader, StatusBadge } from "@/components/ui";
 
+// The console terminal talks to the daemon's websocket endpoint directly.
+// Default to the host that served this page (works in dev and behind nginx,
+// which must WS-proxy /api/v1/vms/.../console/ws to the daemon on :8080).
+// NEXT_PUBLIC_WS_URL overrides that, e.g. "ws://192.168.1.18:8080" to reach the
+// daemon port directly.
 const WS_PROTO = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
-const IS_DEV = process.env.NODE_ENV !== "production";
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? (IS_DEV
-  ? "ws://127.0.0.1:8080"
-  : "");
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? "";
 
 export default function ConsolePage() {
   const containerRef = useRef<HTMLDivElement>(null);

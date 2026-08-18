@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -360,5 +362,164 @@ func TestListVmDisksProxiesDaemon(t *testing.T) {
 	// Row 2: vm-2 boot disk, no state entry -> size 0.
 	if rows[2]["vm_id"] != "vm-2" || rows[2]["kind"] != "boot" || rows[2]["size_gb"] != float64(0) {
 		t.Fatalf("vm-2 boot row wrong: %v", rows[2])
+	}
+}
+
+func newTestServerWithDaemon(t *testing.T, daemonURL string) *Server {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.tfstate")
+	store, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	return NewServer(store, backend.NewClient(daemonURL))
+}
+
+func TestProxyDaemonGet(t *testing.T) {
+	var gotMethod, gotPath, gotQuery string
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"apps":[{"id":"app-1"}]}`))
+	}))
+	defer daemon.Close()
+
+	s := newTestServerWithDaemon(t, daemon.URL)
+	rec := doJSON(t, s, http.MethodGet, "/api/v1/marketplace/apps?verbose=1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotMethod != http.MethodGet || gotPath != "/api/v1/marketplace/apps" || gotQuery != "verbose=1" {
+		t.Fatalf("daemon got %s %s?%s", gotMethod, gotPath, gotQuery)
+	}
+	if !strings.Contains(rec.Body.String(), `"app-1"`) {
+		t.Fatalf("want daemon body forwarded: %s", rec.Body.String())
+	}
+}
+
+func TestProxyDaemonPost(t *testing.T) {
+	var gotBody string
+	var gotContentType string
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		gotContentType = r.Header.Get("Content-Type")
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer daemon.Close()
+
+	s := newTestServerWithDaemon(t, daemon.URL)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/routers", bytes.NewBufferString(`{"name":"r1"}`))
+	req.Header.Set("Content-Type", "application/custom")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("want 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotBody != `{"name":"r1"}` {
+		t.Fatalf("body not forwarded: %q", gotBody)
+	}
+	if gotContentType != "application/custom" {
+		t.Fatalf("content-type not forwarded: %q", gotContentType)
+	}
+}
+
+func TestProxyDaemonErrorPassthrough(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"error":"snapshot name already exists"}`))
+	}))
+	defer daemon.Close()
+
+	s := newTestServerWithDaemon(t, daemon.URL)
+	// /vms/{id}/clone has no explicit orchestrator route, so it must reach the
+	// daemon proxy (unlike start/stop which are handled by startVM/stopVM).
+	rec := doJSON(t, s, http.MethodPost, "/api/v1/vms/vm-1/clone", `{"name":"web-copy"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"snapshot name already exists"`) {
+		t.Fatalf("want daemon error forwarded: %s", rec.Body.String())
+	}
+}
+
+func TestSpecificRoutesWinOverProxy(t *testing.T) {
+	// A literal route (listNodes) must beat the catch-all proxy. The daemon
+	// returns 500 here; listNodes surfaces that as 502, while the proxy would
+	// have forwarded a raw 200/500 body.
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`boom`))
+	}))
+	defer daemon.Close()
+
+	s := newTestServerWithDaemon(t, daemon.URL)
+	rec := doJSON(t, s, http.MethodGet, "/api/v1/nodes", "")
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 from listNodes (explicit route wins), got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestListAllAdoptsDaemonID guards the reconciliation that makes start/stop/
+// console work on clusters upgraded from pre-id go-api builds. State entries
+// backfilled with a placeholder uuid on load must adopt the daemon's real id
+// (matched by name) so lifecycle calls address the same VM.
+func TestListAllAdoptsDaemonID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.tfstate")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	legacy := `{"version":4,"resources":[{"type":"thiscloud_vm","id":"","name":"web","vcpus":1,"memory_mb":512,"disk_gb":10,"image":"x","networks":[],"status":""}]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/vms" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`[{"id":"vm-daemon-1","name":"web","status":"running","node":"n1"}]`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer daemon.Close()
+
+	store, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	s := NewServer(store, backend.NewClient(daemon.URL))
+
+	rec := doJSON(t, s, http.MethodGet, "/api/v1/resources", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var list []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("want 1 VM, got %d", len(list))
+	}
+	if list[0]["id"] != "vm-daemon-1" {
+		t.Fatalf("want daemon id adopted, got %v", list[0]["id"])
+	}
+	if list[0]["status"] != "running" || list[0]["node"] != "n1" {
+		t.Fatalf("want live status/node enriched, got %v", list[0])
+	}
+
+	reopened, err := state.NewStore(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	rlist, err := reopened.List(model.ResourceVM)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rlist) != 1 || rlist[0].ID() != "vm-daemon-1" {
+		t.Fatalf("adopted id not persisted: %#v", rlist)
 	}
 }

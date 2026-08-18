@@ -50,7 +50,45 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/vm-disks", s.listVmDisks)
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /ready", s.ready)
+	// Catch-all daemon passthrough. These register last: Go's ServeMux routes a
+	// request to the most specific matching pattern, so every explicit route
+	// above still wins and only otherwise-unhandled paths reach the daemon.
+	mux.HandleFunc("GET /api/v1/{rest...}", s.proxyDaemon)
+	mux.HandleFunc("POST /api/v1/{rest...}", s.proxyDaemon)
+	mux.HandleFunc("PUT /api/v1/{rest...}", s.proxyDaemon)
+	mux.HandleFunc("PATCH /api/v1/{rest...}", s.proxyDaemon)
+	mux.HandleFunc("DELETE /api/v1/{rest...}", s.proxyDaemon)
 	return mux
+}
+
+// proxyDaemon forwards any request the orchestrator does not handle itself to
+// the daemon, preserving method, query and body. It lets the web UI reach the
+// full daemon API surface — node lifecycle, VM snapshot/clone/resize/migrate/
+// hotplug, image delete/template, routers, DHCP, floating IPs, quotas, audit,
+// backups, S3, marketplace, metrics — without a dedicated handler per endpoint.
+// Status and body are streamed straight back to the caller.
+func (s *Server) proxyDaemon(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	resp, err := s.backend.Proxy(r.Context(), r.Method, r.PathValue("rest"), r.URL.Query(), r.Header.Get("Content-Type"), bytes.NewReader(body))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		log.Printf("warning: streaming daemon response: %v", err)
+	}
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -215,23 +253,31 @@ func (s *Server) listAll(w http.ResponseWriter, typeFilter string) {
 			for i, res := range resources {
 				if vm, ok := res.(model.VM); ok {
 					changed := false
-					if lvm, found := statusMap[vm.ID()]; found {
-						if st, ok := lvm["status"].(string); ok && st != "" {
-							vm.Status = st
-							changed = true
-						}
-						if nd, ok := lvm["node"].(string); ok && nd != "" {
-							vm.Node = nd
-							changed = true
-						}
-					} else if lvm, found := statusMap[vm.Name]; found {
-						if st, ok := lvm["status"].(string); ok && st != "" {
-							vm.Status = st
-							changed = true
-						}
-						if nd, ok := lvm["node"].(string); ok && nd != "" {
-							vm.Node = nd
-							changed = true
+					lvm, found := statusMap[vm.ID()]
+					if !found {
+						lvm, found = statusMap[vm.Name]
+					}
+					if !found {
+						continue
+					}
+					if st, ok := lvm["status"].(string); ok && st != "" {
+						vm.Status = st
+						changed = true
+					}
+					if nd, ok := lvm["node"].(string); ok && nd != "" {
+						vm.Node = nd
+						changed = true
+					}
+					// Adopt the daemon's id when orchestrator state diverged
+					// (legacy entries backfilled with a placeholder uuid on
+					// load). Lifecycle calls — start/stop/delete/console —
+					// must address the same VM the daemon knows.
+					if did, ok := lvm["id"].(string); ok && did != "" && did != vm.ID() {
+						oldID := vm.ResourceID
+						vm.ResourceID = did
+						changed = true
+						if err := s.store.Replace(oldID, vm); err != nil {
+							log.Printf("warning: reconciling vm %q to daemon id: %v", vm.Name, err)
 						}
 					}
 					if changed {

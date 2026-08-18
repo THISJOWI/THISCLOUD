@@ -20,13 +20,13 @@ func TestStorePutGetListDelete(t *testing.T) {
 	}
 
 	vm := model.VM{
-		TypeName: string(model.ResourceVM),
+		TypeName:   string(model.ResourceVM),
 		ResourceID: "vm-1",
-		Name:     "web",
-		VCPUs:    2,
-		MemoryMB: 2048,
-		DiskGB:   20,
-		Image:    "almalinux-9",
+		Name:       "web",
+		VCPUs:      2,
+		MemoryMB:   2048,
+		DiskGB:     20,
+		Image:      "almalinux-9",
 	}
 	if err := store.Put(vm); err != nil {
 		t.Fatalf("Put: %v", err)
@@ -64,8 +64,8 @@ func TestStorePersistsAcrossReopen(t *testing.T) {
 		t.Fatalf("NewStore: %v", err)
 	}
 	pool := model.StoragePool{
-		TypeName: string(model.ResourceStorage),
-		ResourceID: "pool-1",
+		TypeName:    string(model.ResourceStorage),
+		ResourceID:  "pool-1",
 		Name:        "data",
 		PoolType:    "linstor",
 		Replication: 2,
@@ -118,6 +118,47 @@ func TestGetMissingReturnsNotFound(t *testing.T) {
 		t.Fatalf("NewStore: %v", err)
 	}
 	if _, err := store.Get("nope"); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+// TestReplaceSwapsEntryByID guards the id-reconciliation path: a VM persisted
+// under a placeholder id is replaced by the same entry carrying the daemon's
+// real id, without leaving a duplicate behind.
+func TestReplaceSwapsEntryByID(t *testing.T) {
+	store, err := NewStore(tempPath(t))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	vm := model.VM{TypeName: string(model.ResourceVM), ResourceID: "placeholder-1", Name: "web"}
+	if err := store.Put(vm); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	healed := vm
+	healed.ResourceID = "vm-daemon-1"
+	if err := store.Replace("placeholder-1", healed); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+
+	all, err := store.List("")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("want exactly 1 resource after Replace, got %d", len(all))
+	}
+	if all[0].ID() != "vm-daemon-1" {
+		t.Fatalf("want healed id, got %q", all[0].ID())
+	}
+}
+
+func TestReplaceMissingReturnsNotFound(t *testing.T) {
+	store, err := NewStore(tempPath(t))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	if err := store.Replace("nope", model.VM{TypeName: string(model.ResourceVM), ResourceID: "x"}); err != ErrNotFound {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }
