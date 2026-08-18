@@ -84,7 +84,9 @@ cargo install cargo-generate-rpm --locked 2>/dev/null || true
 # invalid). Derive the RPM version from the workspace Cargo.toml and map
 # Cargo prereleases to RPM's '~' prerelease separator (0.4.0~alpha).
 RPM_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
-RPM_VERSION="${RPM_VERSION//-/~}"
+# map '-' to RPM's '~' prerelease separator via sed (avoids bash expanding
+# '~' to $HOME inside ${var//-/~})
+RPM_VERSION="$(printf %s "$RPM_VERSION" | sed 's/-/~/')"
 RPM_VER_OPTS=()
 if [ -n "$RPM_VERSION" ]; then
   echo "    RPM version: $RPM_VERSION"
