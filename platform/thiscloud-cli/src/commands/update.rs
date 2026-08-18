@@ -421,12 +421,8 @@ fn install_artifacts(work_dir: &Path, _version: &str) -> anyhow::Result<()> {
         .collect();
     if !rpms.is_empty() {
         println!("==> Installing RPM packages");
-        let mut args = vec!["localinstall", "-y"];
-        for p in &rpms {
-            args.push(p.to_str().ok_or_else(|| anyhow::anyhow!("non-utf8 path"))?);
-        }
         let status = Command::new("dnf")
-            .args(&args)
+            .args(dnf_localinstall_args(&rpms))
             .status()
             .or_else(|_| Command::new("rpm").args(["-Uvh"]).args(rpms.iter().map(|p| p.as_os_str())).status())?;
         if !status.success() {
@@ -461,6 +457,25 @@ fn install_artifacts(work_dir: &Path, _version: &str) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+// dnf_localinstall_args builds the dnf command for installing local RPMs.
+// Configured repositories are disabled (--disablerepo=*) because the install
+// must not depend on external repo metadata: the ISO installer leaves a local
+// repo pointing at file:///tmp/thiscloud-repo/thiscloud which vanishes after a
+// reboot, and any stale/broken repo would make dnf abort before touching the
+// local packages. Dependency resolution still works against the installed
+// package database plus the local RPMs.
+fn dnf_localinstall_args(rpms: &[PathBuf]) -> Vec<String> {
+    let mut args = vec![
+        "localinstall".to_string(),
+        "-y".to_string(),
+        "--disablerepo=*".to_string(),
+    ];
+    for p in rpms {
+        args.push(p.to_str().unwrap_or_default().to_string());
+    }
+    args
 }
 
 fn make_executable(path: &str) -> anyhow::Result<()> {
@@ -561,6 +576,22 @@ fn rollback(backup_dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dnf_localinstall_disables_configured_repos() {
+        let rpms = vec![
+            PathBuf::from("/tmp/thiscloudd-1.2.3.x86_64.rpm"),
+            PathBuf::from("/tmp/thiscloud-1.2.3.x86_64.rpm"),
+        ];
+        let args = dnf_localinstall_args(&rpms);
+        assert_eq!(args[0], "localinstall");
+        assert_eq!(args[1], "-y");
+        // Stale/absent repo metadata (e.g. the ISO installer's
+        // file:///tmp/thiscloud-repo/thiscloud) must not abort the install.
+        assert!(args.contains(&"--disablerepo=*".to_string()));
+        assert_eq!(args.last().unwrap(), "/tmp/thiscloud-1.2.3.x86_64.rpm");
+        assert!(args.iter().all(|a| !a.contains('\n')));
+    }
 
     #[test]
     fn parses_v_prefixed_tags() {
