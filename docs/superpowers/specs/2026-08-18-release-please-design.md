@@ -1,7 +1,7 @@
 # Monorepo Sychronized Versioning — Google Release-Please
 
 **Date:** 2026-08-18
-**Status:** Under Review
+**Status:** Approved
 **Goal:** Automate package versioning and release notes using Conventional Commits and Google Release-Please, targeting `develop` and `main` branches to support both pre-releases (testing/nightly) and official releases.
 
 ## Problem
@@ -69,3 +69,7 @@ We define a configuration to keep all packages/crates synchronized under the sam
   - Release-Please automatically tags the merge commit (e.g., `v0.4.0-alpha.1` on `develop`, or `v0.4.0` on `main`).
   - This tag triggers the building and publishing workflow (`release.yml` and `iso.yml`).
   - This ensures testing packages and ISOs are built with precise pre-release versions for verification on bare metal.
+
+> Changelogs are generated per package (`platform/CHANGELOG.md`,
+> `platform/web-ui/CHANGELOG.md`) by the linked-versions group PR, then
+> combined into the single `v*` GitHub Release.
