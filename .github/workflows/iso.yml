@@ -2,8 +2,8 @@ name: ISO
 
 on:
   workflow_dispatch:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -18,7 +18,8 @@ permissions:
 #                  Calamares live installer, and produces the final Live ISO.
 #                  Uploads artifact and to R2.
 #
-# Runs on manual dispatch or on release tags (v*). Not on plain main pushes.
+# Runs on manual dispatch or on published GitHub Releases (created by
+# release-please on v* tags). Not on plain main pushes.
 
 jobs:
   iso-build:
