@@ -1,4 +1,4 @@
 {
-  "platform": "0.3.0",
-  "platform/web-ui": "0.3.0"
+  "platform": "0.4.0-alpha",
+  "platform/web-ui": "0.4.0-alpha"
 }
