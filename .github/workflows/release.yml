@@ -104,6 +104,9 @@ jobs:
           mkdir -p dist
           cp -f target/x86_64-unknown-linux-musl/generate-rpm/*.rpm dist/
 
+          # Go API binary (built into repo-root dist/ by the Go step)
+          cp -f ../dist/thiscloud-api-linux-amd64 dist/
+
           # Web UI standalone tarball (server.js at tarball root, matching
           # /usr/share/thiscloud/web-ui layout on the target).
           mkdir -p dist/webui
