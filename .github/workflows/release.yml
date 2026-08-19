@@ -68,9 +68,10 @@ jobs:
           # RPM versions cannot contain '-' (Cargo prerelease like
           # 0.4.0-alpha.1 is invalid). Read the version from the workspace
           # Cargo.toml and map Cargo prereleases to RPM's '~' separator
-          # (0.4.0-alpha.1 -> 0.4.0~alpha.1).
+          # (0.4.0-alpha.1 -> 0.4.0~alpha.1) via sed (bash would expand '~'
+          # to $HOME inside ${var//-/~}).
           RPM_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
-          RPM_VERSION="${RPM_VERSION//-/~}"
+          RPM_VERSION="$(printf %s "$RPM_VERSION" | sed 's/-/~/')"
           RPM_VER_OPTS=()
           if [ -n "$RPM_VERSION" ]; then
             echo "RPM version: $RPM_VERSION"
