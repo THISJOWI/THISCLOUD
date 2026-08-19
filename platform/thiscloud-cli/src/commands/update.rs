@@ -533,16 +533,15 @@ fn restart_service(name: &str) -> bool {
 fn rollback(backup_dir: &Path) {
     eprintln!("==> Rolling back from {}", backup_dir.display());
 
-    // Restore directly-replaced binaries.
-    for (name, dest) in [
-        ("thiscloud-api", "/usr/local/bin/thiscloud-api"),
-        ("thiscloudd", "/usr/sbin/thiscloudd"),
-        ("thiscloud", "/usr/bin/thiscloud"),
-    ] {
-        let src = backup_dir.join(name);
-        if src.exists() {
-            let _ = install_binary(&src, Path::new(dest));
-        }
+    // Restore directly-replaced binaries. Only thiscloud-api is a raw
+    // binary install; thiscloudd and thiscloud-cli are RPM-managed, so
+    // restoring them here would desync /usr/bin/thiscloud and
+    // /usr/sbin/thiscloudd from the RPM database (the next update's
+    // "already installed" no-op would never repair the stale file). The
+    // RPMs (and the dnf downgrade below) own those paths.
+    let api_src = backup_dir.join("thiscloud-api");
+    if api_src.exists() {
+        let _ = install_binary(&api_src, Path::new("/usr/local/bin/thiscloud-api"));
     }
 
     // Restore web-ui tree.
