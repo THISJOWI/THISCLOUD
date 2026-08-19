@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0-alpha.1...v0.4.0) (2026-08-19)
+
+First stable release of the 0.4 series. Promotes the 0.4.0-alpha work (VM
+device hotplug, go-api orchestrator bridge, ISO pipeline fixes) plus release
+pipeline fixes so installed systems can upgrade via `thiscloud update`.
+
 ## [0.4.0-alpha.1](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0-alpha...v0.4.0-alpha.1) (2026-08-18)
 
 
