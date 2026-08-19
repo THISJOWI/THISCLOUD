@@ -434,8 +434,7 @@ fn install_artifacts(work_dir: &Path, _version: &str) -> anyhow::Result<()> {
     let api_src = work_dir.join("thiscloud-api-linux-amd64");
     if api_src.exists() {
         println!("==> Installing thiscloud-api");
-        fs::copy(&api_src, "/usr/local/bin/thiscloud-api")?;
-        make_executable("/usr/local/bin/thiscloud-api")?;
+        install_binary(&api_src, Path::new("/usr/local/bin/thiscloud-api"))?;
     }
 
     // 3. Web UI tarball.
@@ -486,6 +485,21 @@ fn make_executable(path: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+// install_binary atomically replaces dest with src. Overwriting a running
+// executable directly fails with ETXTBSY ("Text file busy"); staging a temp
+// file in the same directory and renaming it over the target lets the running
+// process keep its old inode.
+fn install_binary(src: &Path, dest: &Path) -> anyhow::Result<()> {
+    let tmp = dest.with_extension("tmp");
+    fs::copy(src, &tmp)?;
+    let tmp_str = tmp
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("invalid temp path: {}", tmp.display()))?;
+    make_executable(tmp_str)?;
+    fs::rename(&tmp, dest)?;
+    Ok(())
+}
+
 fn extract_tar_gz(tarball: &Path, dest: &Path) -> anyhow::Result<()> {
     let mut cmd = Command::new("tar")
         .arg("-xzf")
@@ -526,8 +540,8 @@ fn rollback(backup_dir: &Path) {
         ("thiscloud", "/usr/bin/thiscloud"),
     ] {
         let src = backup_dir.join(name);
-        if src.exists() && fs::copy(&src, dest).is_ok() {
-            let _ = make_executable(dest);
+        if src.exists() {
+            let _ = install_binary(&src, Path::new(dest));
         }
     }
 
@@ -657,5 +671,22 @@ mod tests {
             }],
         };
         assert!(verify_manifest(dir.path(), &m).is_ok());
+    }
+
+    #[test]
+    fn install_binary_replaces_target_atomically() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("new-binary");
+        let dest = dir.path().join("thiscloud-api");
+        fs::write(&src, b"new-content").unwrap();
+        fs::write(&dest, b"old-content").unwrap();
+
+        install_binary(&src, &dest).unwrap();
+
+        use std::io::Read;
+        let mut buf = Vec::new();
+        fs::File::open(&dest).unwrap().read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, b"new-content");
+        assert!(!dest.with_extension("tmp").exists());
     }
 }
