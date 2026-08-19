@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0...v0.4.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **update:** replace thiscloud-api via atomic rename, not copy, so `thiscloud update` works while thiscloud-api.service is running ([b58a804](https://github.com/THISJOWI/THISCLOUD/commit/b58a8046704c0a90a7d1057c441baef7d8c0a0b6))
+
 ## [0.4.0](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0-alpha.1...v0.4.0) (2026-08-19)
 
 First stable release of the 0.4 series. Promotes the 0.4.0-alpha work (VM
