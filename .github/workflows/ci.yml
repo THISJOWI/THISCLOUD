@@ -24,7 +24,24 @@ jobs:
         with:
           components: clippy
       - name: Install protoc + etcd
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler etcd-server
+        timeout-minutes: 10
+        run: |
+          set -e
+          installed=0
+          for i in 1 2 3 4 5; do
+            if sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 update \
+                && sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 install -y protobuf-compiler etcd-server; then
+              echo "apt packages installed"
+              installed=1
+              break
+            fi
+            echo "apt attempt $i failed; retrying in 20s"
+            sleep 20
+          done
+          if [ "$installed" -ne 1 ]; then
+            echo "::error::apt install failed after 5 attempts"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: platform

@@ -2,6 +2,11 @@ name: ISO
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to build (e.g. 0.4.1); empty = auto-bump over latest release'
+        required: false
+        default: ''
   release:
     types: [published]
 
@@ -32,7 +37,24 @@ jobs:
           components: clippy
         # protoc + etcd required for Rust workspace compilation
       - name: Install musl cross-compiler + protoc + etcd
-        run: sudo apt-get update && sudo apt-get install -y musl-tools protobuf-compiler etcd-server
+        timeout-minutes: 10
+        run: |
+          set -e
+          installed=0
+          for i in 1 2 3 4 5; do
+            if sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 update \
+                && sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=60 install -y musl-tools protobuf-compiler etcd-server; then
+              echo "apt packages installed"
+              installed=1
+              break
+            fi
+            echo "apt attempt $i failed; retrying in 20s"
+            sleep 20
+          done
+          if [ "$installed" -ne 1 ]; then
+            echo "::error::apt install failed after 5 attempts"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: platform
@@ -91,7 +113,10 @@ jobs:
       - name: Resolve VERSION
         id: version
         run: |
-          if [[ "${GITHUB_REF_NAME:0:1}" == "v" ]]; then
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "manual build version=${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_REF_NAME:0:1}" == "v" ]]; then
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           else
             # Manual dispatch: bump by 0.1 over the latest release (0.9 -> 1.0).
