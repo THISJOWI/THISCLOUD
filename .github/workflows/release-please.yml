@@ -5,6 +5,14 @@ on:
     branches:
       - develop
       - main
+  # Forzar una versión concreta (p.ej. la primera estable de main):
+  # disparar manualmente con release-as: 0.4.0
+  workflow_dispatch:
+    inputs:
+      release-as:
+        description: "Version to force (e.g. 0.4.0). Empty = auto"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -25,3 +33,4 @@ jobs:
           config-file: ${{ github.ref_name == 'main' && 'release-please-config.json' || 'release-please-config.develop.json' }}
           manifest-file: .release-please-manifest.json
           target-branch: ${{ github.ref_name }}
+          release-as: ${{ inputs.release-as || '' }}
