@@ -29,7 +29,9 @@ echo "==> fetching kpmcore $KPMCORE_VER"
 if [ ! -d "$SRC/kpmcore" ]; then
   curl -fsSL "https://github.com/KDE/kpmcore/archive/refs/tags/v${KPMCORE_VER}.tar.gz" -o "$WORK/kpmcore.tar.gz"
   tar -xzf "$WORK/kpmcore.tar.gz" -C "$SRC"
-  mv "$SRC/kpmcore-v${KPMCORE_VER}" "$SRC/kpmcore"
+  KPMCORE_SRC="$(find "$SRC" -maxdepth 1 -type d -name 'kpmcore*' | head -1)"
+  [ -n "$KPMCORE_SRC" ] || { echo "ERROR: kpmcore source dir not found after extract"; exit 1; }
+  mv "$KPMCORE_SRC" "$SRC/kpmcore"
 fi
 
 # ── Build KPMcore ────────────────────────────────────────────────────
