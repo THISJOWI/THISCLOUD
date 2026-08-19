@@ -21,20 +21,23 @@
           "type": "toml",
           "path": "Cargo.lock",
           "jsonpath": "$.package[?(@.name.value==\"thiscloud-cli\")].version"
+        },
+        {
+          "type": "json",
+          "path": "web-ui/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "web-ui/package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "web-ui/package-lock.json",
+          "jsonpath": "$.packages[\"\"].version"
         }
       ]
-    },
-    "platform/web-ui": {
-      "release-type": "node",
-      "component": "web-ui",
-      "package-name": "thiscloud-web"
     }
-  },
-  "plugins": [
-    {
-      "type": "linked-versions",
-      "groupName": "thiscloud",
-      "components": ["platform", "web-ui"]
-    }
-  ]
+  }
 }
