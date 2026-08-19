@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Install system deps
         run: |
@@ -63,11 +65,24 @@ jobs:
         working-directory: platform
         run: |
           cargo install cargo-generate-rpm --locked
+          # RPM versions cannot contain '-' (Cargo prerelease like
+          # 0.4.0-alpha.1 is invalid). Read the version from the workspace
+          # Cargo.toml and map Cargo prereleases to RPM's '~' separator
+          # (0.4.0-alpha.1 -> 0.4.0~alpha.1).
+          RPM_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
+          RPM_VERSION="${RPM_VERSION//-/~}"
+          RPM_VER_OPTS=()
+          if [ -n "$RPM_VERSION" ]; then
+            echo "RPM version: $RPM_VERSION"
+            RPM_VER_OPTS=(-s "version = \"$RPM_VERSION\"")
+          else
+            echo "warning: could not read version from Cargo.toml; using package.version"
+          fi
           mkdir -p target/release
           cp -f target/x86_64-unknown-linux-musl/release/thiscloudd target/release/thiscloudd
           cp -f target/x86_64-unknown-linux-musl/release/thiscloud target/release/thiscloud
-          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloudd
-          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloud-cli
+          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloudd "${RPM_VER_OPTS[@]}"
+          cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloud-cli "${RPM_VER_OPTS[@]}"
           ls -lh target/x86_64-unknown-linux-musl/generate-rpm/
 
       - name: Build Go API binary
