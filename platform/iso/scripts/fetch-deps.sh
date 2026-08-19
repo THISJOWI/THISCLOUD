@@ -136,7 +136,7 @@ if [ ! -f "$REPO/sources/calamares-3.3.14.tar.gz" ]; then
     -o "$REPO/sources/calamares-3.3.14.tar.gz"
 fi
 if [ ! -f "$REPO/sources/kpmcore-v24.05.2.tar.gz" ]; then
-  curl -fSL "https://invent.kde.org/libs/kpmcore/-/archive/v24.05.2/kpmcore-v24.05.2.tar.gz" \
+  curl -fSL "https://github.com/KDE/kpmcore/archive/refs/tags/v24.05.2.tar.gz" \
     -o "$REPO/sources/kpmcore-v24.05.2.tar.gz"
 fi
 

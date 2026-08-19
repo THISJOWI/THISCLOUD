@@ -80,13 +80,27 @@ bash iso/scripts/cross-compile.sh
 
 echo "==> [2/9] Build RPMs with cargo-generate-rpm"
 cargo install cargo-generate-rpm --locked 2>/dev/null || true
+# RPM versions cannot contain '-' (Cargo prerelease like 0.4.0-alpha is
+# invalid). Derive the RPM version from the workspace Cargo.toml and map
+# Cargo prereleases to RPM's '~' prerelease separator (0.4.0~alpha).
+RPM_VERSION="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' Cargo.toml | head -1)"
+# map '-' to RPM's '~' prerelease separator via sed (avoids bash expanding
+# '~' to $HOME inside ${var//-/~})
+RPM_VERSION="$(printf %s "$RPM_VERSION" | sed 's/-/~/')"
+RPM_VER_OPTS=()
+if [ -n "$RPM_VERSION" ]; then
+  echo "    RPM version: $RPM_VERSION"
+  RPM_VER_OPTS=(-s "version = \"$RPM_VERSION\"")
+else
+  echo "    warning: could not read version from Cargo.toml; using package.version"
+fi
 # The generate-rpm asset paths in each Cargo.toml point at target/release/, so
 # mirror the cross-compiled binaries there (this runs natively on x86_64).
 mkdir -p target/release
 cp -f target/x86_64-unknown-linux-musl/release/thiscloudd target/release/thiscloudd
 cp -f target/x86_64-unknown-linux-musl/release/thiscloud  target/release/thiscloud
-cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloudd
-cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloud-cli
+cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloudd "${RPM_VER_OPTS[@]}"
+cargo generate-rpm --target x86_64-unknown-linux-musl -p thiscloud-cli "${RPM_VER_OPTS[@]}"
 # Copy produced RPMs into the thiscloud sub-repo (kickstart baseurl
 # points at /repo/thiscloud on the ISO media).
 cp -f target/x86_64-unknown-linux-musl/generate-rpm/*.rpm "$RPM_DIR/" 2>/dev/null || true

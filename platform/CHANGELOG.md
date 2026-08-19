@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0-alpha.1](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0-alpha...v0.4.0-alpha.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **iso:** fetch kpmcore source from GitHub mirror, not invent.kde.org ([4a3e024](https://github.com/THISJOWI/THISCLOUD/commit/4a3e0249a78886d58533acdb3da5fffc0de5d453))
+
 ## [0.4.0-alpha](https://github.com/THISJOWI/THISCLOUD/compare/v0.3.0...v0.4.0-alpha) (2026-08-18)
 
 
