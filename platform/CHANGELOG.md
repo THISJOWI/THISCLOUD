@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.1...v0.4.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ci/update:** resilient apt, kpmcore ISO dir, no RPM-managed binary rollback ([4bbef51](https://github.com/THISJOWI/THISCLOUD/commit/4bbef51c2c7f882c2f387941c0a01baac66d0794))
+* **ci:** make apt step resilient and fix kpmcore source dir in ISO build ([ec13037](https://github.com/THISJOWI/THISCLOUD/commit/ec1303703832c1819f83088cd9d051775416a675))
+* **update:** don't restore RPM-managed binaries on rollback ([041027f](https://github.com/THISJOWI/THISCLOUD/commit/041027fe2fe08f2f03769aa5d5322656a8a43fd1))
+
 ## [0.4.1](https://github.com/THISJOWI/THISCLOUD/compare/v0.4.0...v0.4.1) (2026-08-19)
 
 
