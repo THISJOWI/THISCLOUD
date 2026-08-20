@@ -96,7 +96,7 @@ echo "==> Installing Calamares/KPMcore build deps"
 dnf install -y \
   gcc-c++ gcc make cmake ninja-build \
   qt5-qtbase-devel qt5-qtsvg-devel qt5-qtdeclarative-devel \
-  qt5-qtquickcontrols2-devel qt5-qtquicktemplates2-devel \
+  qt5-qtquickcontrols2-devel \
   qt5-qttools-devel \
   boost-devel yaml-cpp-devel parted-devel \
   extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel \

@@ -177,11 +177,10 @@ jobs:
                 dnf-utils dnf-plugins-core python3 python3-devel gcc gcc-c++ \
                 cmake make rpm-build lorax \
                 qt5-qtbase-devel qt5-qtsvg-devel qt5-qtdeclarative-devel \
-                qt5-qtquickcontrols2-devel qt5-qtquicktemplates2-devel \
-                qt5-qttools-devel \
+                qt5-qtquickcontrols2-devel qt5-qttools-devel \
                 boost-devel yaml-cpp-devel parted-devel kf5-kcoreaddons-devel \
                 kf5-ki18n-devel kf5-kconfig-devel kf5-kwidgetsaddons-devel \
-                polkit-qt5-1-devel extra-cmake-modules || true
+                polkit-qt5-1-devel extra-cmake-modules
               for tool in xorriso cpio createrepo_c implantisomd5 curl; do
                 command -v "$tool" >/dev/null 2>&1 || { echo "::error::missing $tool"; exit 1; }
               done
