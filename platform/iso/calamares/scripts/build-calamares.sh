@@ -7,7 +7,8 @@
 # kpmcore 23.08.5 + Calamares WITH_QT6=OFF.
 #
 # MUST run on AlmaLinux 9 x86_64 with the build deps installed
-# (see install-deps.sh additions). Run from platform/iso/calamares/.
+# (see install-deps.sh additions). Location-independent: resolves its own
+# source dir via BASH_SOURCE, so it can be invoked from any cwd.
 #
 #   ./scripts/build-calamares.sh /tmp/live-root
 set -euo pipefail
@@ -15,7 +16,9 @@ set -euo pipefail
 STAGING="${1:?usage: build-calamares.sh /path/to/live-root}"
 CALAMARES_VER="${CALAMARES_VER:-3.3.14}"
 KPMCORE_VER="${KPMCORE_VER:-23.08.5}"
-WORK="$(pwd)/.build"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CALAMAES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORK="$CALAMAES_DIR/.build"
 SRC="$WORK/src"
 
 echo "==> staging root: $STAGING"
@@ -52,7 +55,7 @@ DESTDIR="$STAGING" cmake --install "$WORK/kpmcore-build"
 
 # ── Inject THISCLOUD module ─────────────────────────────────────────
 echo "==> injecting thiscloudqml module"
-THISCLOUD_MOD="$(pwd)/modules/thiscloudqml"
+THISCLOUD_MOD="$CALAMAES_DIR/modules/thiscloudqml"
 cp -r "$THISCLOUD_MOD" "$SRC/calamares/src/modules/thiscloudqml"
 
 # ── Build Calamares ──────────────────────────────────────────────────
@@ -74,28 +77,28 @@ DESTDIR="$STAGING" cmake --install "$WORK/calamares-build"
 
 # ── Install branding + settings + modules into staging ───────────────
 echo "==> installing THISCLOUD branding/settings and module configs"
-BRANDING_DIR="$(pwd)/branding/thiscloud"
+BRANDING_DIR="$CALAMAES_DIR/branding/thiscloud"
 install -d "$STAGING/etc/calamares/branding/thiscloud"
 cp -r "$BRANDING_DIR"/. "$STAGING/etc/calamares/branding/thiscloud/"
 
 install -d "$STAGING/etc/calamares"
-cp -f "$(pwd)/settings.conf" "$STAGING/etc/calamares/settings.conf"
+cp -f "$CALAMAES_DIR/settings.conf" "$STAGING/etc/calamares/settings.conf"
 
 install -d "$STAGING/etc/calamares/modules"
 
 # Install custom thiscloud job module
 install -d "$STAGING/etc/calamares/modules/thiscloud"
-cp -f "$(pwd)/modules/thiscloud/main.py" "$STAGING/etc/calamares/modules/thiscloud/"
-cp -f "$(pwd)/modules/thiscloud/thiscloud_logic.py" "$STAGING/etc/calamares/modules/thiscloud/"
-cp -f "$(pwd)/modules/thiscloud/module.desc" "$STAGING/etc/calamares/modules/thiscloud/"
-cp -f "$(pwd)/modules/thiscloud/thiscloud.conf" "$STAGING/etc/calamares/modules/thiscloud/"
+cp -f "$CALAMAES_DIR/modules/thiscloud/main.py" "$STAGING/etc/calamares/modules/thiscloud/"
+cp -f "$CALAMAES_DIR/modules/thiscloud/thiscloud_logic.py" "$STAGING/etc/calamares/modules/thiscloud/"
+cp -f "$CALAMAES_DIR/modules/thiscloud/module.desc" "$STAGING/etc/calamares/modules/thiscloud/"
+cp -f "$CALAMAES_DIR/modules/thiscloud/thiscloud.conf" "$STAGING/etc/calamares/modules/thiscloud/"
 
 # Install Proxmox-like customized module configurations
 for mod in welcome partition locale keyboard users finished; do
-  if [ -f "$(pwd)/modules/$mod/$mod.conf" ]; then
+  if [ -f "$CALAMAES_DIR/modules/$mod/$mod.conf" ]; then
     install -d "$STAGING/etc/calamares/modules/$mod"
-    cp -f "$(pwd)/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod/"
-    cp -f "$(pwd)/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod.conf"
+    cp -f "$CALAMAES_DIR/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod/"
+    cp -f "$CALAMAES_DIR/modules/$mod/$mod.conf" "$STAGING/etc/calamares/modules/$mod.conf"
   fi
 done
 
@@ -111,7 +114,7 @@ test -f "$STAGING/etc/calamares/modules/partition.conf" && echo "  partition.con
 echo "==> packaging staging root into RPMs"
 RPMROOT="$WORK/rpm"
 mkdir -p "$RPMROOT"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-REPO_RPMS="${THISCLOUD_REPO_RPMS:-$(cd "$(pwd)/.." && pwd)/repo/thiscloud}"  # platform/iso/repo/thiscloud — createrepo'd dnf repo
+REPO_RPMS="${THISCLOUD_REPO_RPMS:-$(cd "$CALAMAES_DIR/.." && pwd)/repo/thiscloud}"  # platform/iso/repo/thiscloud — createrepo'd dnf repo
 
 rpmbuild_spec() { # $1=name $2=version $3=summary
   cat > "$RPMROOT/SPECS/$1.spec" <<EOF
