@@ -135,9 +135,9 @@ if [ ! -f "$REPO/sources/calamares-3.3.14.tar.gz" ]; then
   curl -fSL "https://github.com/calamares/calamares/archive/refs/tags/v3.3.14.tar.gz" \
     -o "$REPO/sources/calamares-3.3.14.tar.gz"
 fi
-if [ ! -f "$REPO/sources/kpmcore-v24.05.2.tar.gz" ]; then
-  curl -fSL "https://github.com/KDE/kpmcore/archive/refs/tags/v24.05.2.tar.gz" \
-    -o "$REPO/sources/kpmcore-v24.05.2.tar.gz"
+if [ ! -f "$REPO/sources/kpmcore-v23.08.5.tar.gz" ]; then
+  curl -fSL "https://github.com/KDE/kpmcore/archive/refs/tags/v23.08.5.tar.gz" \
+    -o "$REPO/sources/kpmcore-v23.08.5.tar.gz"
 fi
 
 # Note: createrepo_c is called by build-iso.sh after this script.

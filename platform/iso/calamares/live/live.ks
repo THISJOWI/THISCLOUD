@@ -26,10 +26,16 @@ part / --size=4096 --grow --fstype=ext4
 # packages come from the configured repos at build time.
 #cdrom
 
-# Local repo with THISCLOUD RPMs (thiscloud, thiscloudd, calamares,
-# kpmcore — built by build-calamares.sh). Path is host-visible because
-# the build runs with --no-virt.
+# Local repo with THISCLOUD RPMs (thiscloud, thiscloudd, calamares —
+# Calamares + KPMcore are bundled into the single `calamares` RPM built by
+# build-calamares.sh). Path is host-visible because the build runs with
+# --no-virt.
 repo --name=thiscloud-local --baseurl=file:///data/thiscloud-repo
+
+# EPEL + CRB supply the Qt5/KF5 runtime libs and window manager Calamares
+# needs (kf5-*, polkit-qt5-1, openbox); the source ISO repos do not have them.
+repo --name=crb --baseurl=https://repo.almalinux.org/almalinux/9/crb/x86_64/os/
+repo --name=epel --baseurl=https://download.fedoraproject.org/pub/epel/9/Everything/x86_64/
 
 # ── Packages ─────────────────────────────────────────────────────────
 %packages
@@ -42,14 +48,18 @@ openbox
 xterm
 xsetroot
 # Calamares + runtime deps (built by build-calamares.sh → RPMs in
-# thiscloud-local repo)
+# thiscloud-local repo). Qt5/KF5 stack (kpmcore 24.x needs KF6, not on EL9).
 calamares
-kpmcore
 python3
-python3-pyqt6
-qt6-qtbase
-qt6-qtsvg
-qt6-qtdeclarative
+qt5-qtbase
+qt5-qtsvg
+qt5-qtdeclarative
+qt5-qtquickcontrols2
+kf5-kcoreaddons
+kf5-ki18n
+kf5-kconfig
+kf5-kwidgetsaddons
+polkit-qt5-1
 # THISCLOUD runtime bits (reused from existing repo)
 thiscloud
 thiscloudd

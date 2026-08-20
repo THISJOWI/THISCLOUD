@@ -45,15 +45,18 @@ fi
 # and set `repo --name=thiscloud-local --baseurl=http://127.0.0.1:8080`
 # in live.ks. Keep this line in sync with the repo URL in live.ks.
 
-# 3. Assemble the live ISO. Package set (incl. calamares/kpmcore RPMs)
-#    comes from %packages in live.ks, resolved against the local repo.
+# 3. Assemble the live ISO. Package set (incl. the calamares RPM that
+#    bundles KPMcore) comes from %packages in live.ks, resolved against the
+#    local repo. livemedia-creator --iso-only writes the ISO to a temp dir
+#    named `--iso-name`; --resultdir copies it into $OUT afterwards.
 livemedia-creator --make-iso --no-virt --iso-only \
   --ks "$CALAMAES_DIR/live/live.ks" \
   --source "$ALMAISO" \
   --resultdir "$OUT" \
   --project "THISCLOUD" \
   --releasever 9 \
-  --volid "THISCLOUD-${VERSION}"
+  --volid "THISCLOUD-${VERSION}" \
+  --iso-name "ThisCloud-${VERSION}-x86_64.iso"
 
 echo "==> Done"
 ls -lh "$OUT"/*.iso

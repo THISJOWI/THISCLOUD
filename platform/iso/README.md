@@ -83,7 +83,7 @@ Custom pieces under `iso/calamares/`:
 - `modules/thiscloudqml/` — QML view module collecting node role/cluster/IP/interface (compiled into Calamares).
 - `modules/thiscloud/` — Python job module applying config to the target.
 - `settings.conf` — module sequence.
-- `scripts/build-calamares.sh` — compiles Calamares 3.3.14 + KPMcore 24.05.2 (absent from EPEL9) into a staging root.
+- `scripts/build-calamares.sh` — compiles Calamares 3.3.14 + KPMcore 23.08.5 (Qt5/KF5 stack; kpmcore 24.x needs KF6, unavailable on EL9) into a staging root.
 - `scripts/build-live-iso.sh` — assembles the live ISO with livemedia-creator.
 - `live/live.ks` — live host kickstart (autologin + Calamares autostart).
 

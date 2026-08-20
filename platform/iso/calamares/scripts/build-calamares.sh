@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Build Calamares 3.3.14 + KPMcore 24.05.2 from source into a staging root
+# Build Calamares 3.3.14 + KPMcore 23.08.5 from source into a staging root
 # that the live ISO (live.ks) pulls in as RPMs from iso/repo.
+#
+# kpmcore 24.x + Calamares-with-Qt6 require KF6 + ECM >= 5.240, which do not
+# exist on AlmaLinux 9 (only KF5/ECM 5.116). We build the Qt5/KF5 stack:
+# kpmcore 23.08.5 + Calamares WITH_QT6=OFF.
 #
 # MUST run on AlmaLinux 9 x86_64 with the build deps installed
 # (see install-deps.sh additions). Run from platform/iso/calamares/.
@@ -10,7 +14,7 @@ set -euo pipefail
 
 STAGING="${1:?usage: build-calamares.sh /path/to/live-root}"
 CALAMARES_VER="${CALAMARES_VER:-3.3.14}"
-KPMCORE_VER="${KPMCORE_VER:-24.05.2}"
+KPMCORE_VER="${KPMCORE_VER:-23.08.5}"
 WORK="$(pwd)/.build"
 SRC="$WORK/src"
 
@@ -40,6 +44,7 @@ cmake -S "$SRC/kpmcore" -B "$WORK/kpmcore-build" \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DCMAKE_INSTALL_LIBDIR=/usr/lib64 \
   -DCMAKE_BUILD_TYPE=Release \
+  -DQT_MAJOR_VERSION=5 \
   -DBUILD_TESTING=OFF
 cmake --build "$WORK/kpmcore-build" -j"$(nproc)"
 cmake --install "$WORK/kpmcore-build" --prefix "$STAGING/usr"
@@ -58,6 +63,7 @@ cmake -S "$SRC/calamares" -B "$WORK/calamares-build" \
   -DCMAKE_BUILD_TYPE=Release \
   -DKPMCORE_DIR="$STAGING/usr/lib64/cmake/kpmcore" \
   -DWITH_QML=ON \
+  -DWITH_QT6=OFF \
   -DWITH_PYTHON=ON \
   -DINSTALL_CONFIG=ON \
   -DSKIP_PEDANTIC=ON

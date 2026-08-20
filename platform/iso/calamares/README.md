@@ -24,10 +24,10 @@ ALMAISO=/data/AlmaLinux-9-latest-x86_64-minimal.iso \
   bash platform/iso/calamares/scripts/build-live-iso.sh
 ```
 
-`build-live-iso.sh` compiles Calamares+KPMcore, packages them as RPMs into
-`iso/repo` (regenerating repo metadata), then assembles the live ISO with
-`livemedia-creator --no-virt` using `live/live.ks`, which pulls `calamares`,
-`kpmcore`, and the THISCLOUD packages from the local repo.
+`build-live-iso.sh` compiles Calamares+KPMcore, packages them as a single
+`calamares` RPM into `iso/repo` (regenerating repo metadata), then assembles
+the live ISO with `livemedia-creator --no-virt` using `live/live.ks`, which
+pulls `calamares` and the THISCLOUD packages from the local repo.
 
 Output: `/data/thiscloud-live-iso/ThisCloud-<VERSION>-x86_64.iso`.
 

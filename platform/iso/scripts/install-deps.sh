@@ -91,13 +91,18 @@ cargo install cargo-generate-rpm --locked
 
 # ── Calamares builder deps (compile from source for EL9) ─────────────
 echo "==> Installing Calamares/KPMcore build deps"
+# Qt5/KF5 stack: kpmcore 23.08.5 + Calamares WITH_QT6=OFF. kpmcore 24.x and
+# Calamares-Qt6 require KF6 + ECM >= 5.240 (not available on EL9).
 dnf install -y \
   gcc-c++ gcc make cmake ninja-build \
-  qt6-qtbase-devel qt6-qtsvg-devel qt6-qtdeclarative-devel \
-  qt6-qtquickcontrols2-devel qt6-qtquicktemplates2-devel \
+  qt5-qtbase-devel qt5-qtsvg-devel qt5-qtdeclarative-devel \
+  qt5-qtquickcontrols2-devel qt5-qtquicktemplates2-devel \
+  qt5-qttools-devel \
   boost-devel yaml-cpp-devel parted-devel \
-  extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel kf5-kconfig-devel \
-  python3 python3-devel python3-pyqt6 \
+  extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel \
+  kf5-kconfig-devel kf5-kwidgetsaddons-devel \
+  polkit-qt5-1-devel \
+  python3 python3-devel \
   lorax livemedia-utils createrepo_c rpm-build 2>/dev/null \
   || echo "WARNING: some Calamares deps unavailable from current repos (EPEL9 may be needed)"
 
