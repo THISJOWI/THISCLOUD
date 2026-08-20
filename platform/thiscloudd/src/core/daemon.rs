@@ -417,11 +417,14 @@ impl Daemon {
             labels: Vec::new(),
         };
 
-        // Seed the shared store when this daemon owns it (no remote master).
+        // Own the shared store when no remote master is configured: always
+        // ensure this daemon's own node is registered. Seeding only on an
+        // empty store left a restarted master unregistered (and permanently
+        // offline) whenever workers were already present.
         let masters = self.config.node.masters.clone();
         if masters.is_empty() {
             let mut nodes = self.node_module.lock().await;
-            if nodes.is_empty().await? {
+            if nodes.get(&agent_node.id).await?.is_none() {
                 let seeded = nodes.register(agent_node.clone()).await?;
                 tracing::info!(
                     "Self-registered node: {} ({}) role={:?}",
