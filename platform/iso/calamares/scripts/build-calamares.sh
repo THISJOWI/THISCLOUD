@@ -50,7 +50,6 @@ cmake -S "$SRC/kpmcore" -B "$WORK/kpmcore-build" \
   -DQT_MAJOR_VERSION=5 \
   -DBUILD_TESTING=OFF
 cmake --build "$WORK/kpmcore-build" -j"$(nproc)"
-cmake --install "$WORK/kpmcore-build" --prefix "$STAGING/usr"
 DESTDIR="$STAGING" cmake --install "$WORK/kpmcore-build"
 
 # ── Inject THISCLOUD module ─────────────────────────────────────────
@@ -64,7 +63,7 @@ cmake -S "$SRC/calamares" -B "$WORK/calamares-build" \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DCMAKE_INSTALL_LIBDIR=/usr/lib64 \
   -DCMAKE_BUILD_TYPE=Release \
-  -DKPMCORE_DIR="$STAGING/usr/lib64/cmake/kpmcore" \
+  -DKPMCORE_DIR="$STAGING/usr/lib64/cmake/KPMcore" \
   -DWITH_QML=ON \
   -DWITH_QT6=OFF \
   -DWITH_PYTHON=ON \
