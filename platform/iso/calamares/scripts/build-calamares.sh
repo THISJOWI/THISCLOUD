@@ -63,7 +63,7 @@ cmake -S "$SRC/calamares" -B "$WORK/calamares-build" \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DCMAKE_INSTALL_LIBDIR=/usr/lib64 \
   -DCMAKE_BUILD_TYPE=Release \
-  -DKPMCORE_DIR="$STAGING/usr/lib64/cmake/KPMcore" \
+  -DKPMcore_DIR="$STAGING/usr/lib64/cmake/KPMcore" \
   -DWITH_QML=ON \
   -DWITH_QT6=OFF \
   -DWITH_PYTHON=ON \

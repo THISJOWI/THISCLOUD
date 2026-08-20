@@ -2,7 +2,6 @@
 #include "ThisCloudViewStep.h"
 
 #include "GlobalStorage.h"
-#include "utils/CalamaresUtilsGui.h"
 #include "utils/Logger.h"
 #include "utils/Variant.h"
 
