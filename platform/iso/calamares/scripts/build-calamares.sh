@@ -45,7 +45,7 @@ fi
 echo "==> building kpmcore"
 cmake -S "$SRC/kpmcore" -B "$WORK/kpmcore-build" \
   -DCMAKE_INSTALL_PREFIX=/usr \
-  -DCMAKE_INSTALL_LIBDIR=/usr/lib64 \
+  -DCMAKE_INSTALL_LIBDIR=lib64 \
   -DCMAKE_BUILD_TYPE=Release \
   -DQT_MAJOR_VERSION=5 \
   -DBUILD_TESTING=OFF
@@ -61,7 +61,7 @@ cp -r "$THISCLOUD_MOD" "$SRC/calamares/src/modules/thiscloudqml"
 echo "==> configuring calamares"
 cmake -S "$SRC/calamares" -B "$WORK/calamares-build" \
   -DCMAKE_INSTALL_PREFIX=/usr \
-  -DCMAKE_INSTALL_LIBDIR=/usr/lib64 \
+  -DCMAKE_INSTALL_LIBDIR=lib64 \
   -DCMAKE_BUILD_TYPE=Release \
   -DKPMcore_DIR="$STAGING/usr/lib64/cmake/KPMcore" \
   -DWITH_QML=ON \
