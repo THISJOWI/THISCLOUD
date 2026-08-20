@@ -98,7 +98,7 @@ dnf install -y \
   qt5-qtbase-devel qt5-qtsvg-devel qt5-qtdeclarative-devel \
   qt5-qtquickcontrols2-devel \
   qt5-qttools-devel \
-  boost-devel yaml-cpp-devel parted-devel \
+  boost-devel yaml-cpp-devel parted-devel libblkid-devel \
   extra-cmake-modules kf5-kcoreaddons-devel kf5-ki18n-devel \
   kf5-kconfig-devel kf5-kwidgetsaddons-devel \
   polkit-qt5-1-devel \
