@@ -7,16 +7,6 @@ on:
         description: "Version tag (e.g. 0.4.0)"
         required: false
         default: "0.4.0"
-      skip_yocto:
-        description: "Skip Yocto build (use existing artifacts)"
-        required: false
-        default: "false"
-        type: boolean
-      skip_el:
-        description: "Skip EL layer build"
-        required: false
-        default: "false"
-        type: boolean
   push:
     branches:
       - feature/native-os
@@ -25,7 +15,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Rust check (quick validation) ────────────────────────────────────
+  # ── Rust check ──────────────────────────────────────────────────────
 
   rust-check:
     name: Rust check
@@ -69,14 +59,19 @@ jobs:
           sudo apt-get update && sudo apt-get install -y shellcheck
           find os/kernel/ os/system/ -name '*.sh' -exec shellcheck --severity=warning {} +
 
-  # ── Build ISO (AlmaLinux 9) ────────────────────────────────────────
+  # ── Build ISO ───────────────────────────────────────────────────────
 
   build-iso:
     name: Build ISO
-    runs-on: [self-hosted, AlmaLinux-9]
+    runs-on: ubuntu-latest
     needs: [rust-check, shellcheck]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools xorriso
 
       - name: Determine version
         id: version
@@ -85,90 +80,74 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building THISCLOUD OS v$VERSION"
 
-      - name: Build EL layer
-        if: ${{ github.event.inputs.skip_el != 'true' }}
+      - name: Build thpkg binary
+        run: cargo build -p thpkg --release
+
+      - name: Create demo slot
         run: |
-          VERSION=${{ steps.version.outputs.version }} \
-          bash os/kernel/build-el-layer.sh \
-            --output build/release/el-layer
+          VERSION=${{ steps.version.outputs.version }}
+          mkdir -p build/release/slot
 
-      - name: Build Yocto image
-        if: ${{ github.event.inputs.skip_yocto != 'true' }}
-        run: |
-          bash os/kernel/build-image.sh
+          # Create a minimal rootfs
+          ROOTFS=/tmp/demo-rootfs
+          rm -rf "$ROOTFS"
+          mkdir -p "$ROOTFS"/{bin,sbin,usr/bin,usr/sbin,etc,proc,sys,dev,tmp,run,boot}
+          mkdir -p "$ROOTFS/usr/lib/systemd/system"
+          mkdir -p "$ROOTFS/usr/bin"
+          mkdir -p "$ROOTFS/etc/thpkg"
 
-      - name: Assemble slot
-        run: |
-          # Find Yocto artifacts if they exist
-          DEPLOY_DIR="build/yocto/tmp/deploy/images"
-          MACHINE="qemu-x86-64"
+          # Install thpkg binary
+          cp target/release/thpkg "$ROOTFS/usr/bin/thpkg"
+          chmod +x "$ROOTFS/usr/bin/thpkg"
 
-          EL_ARG=""
-          if [ -f build/release/el-layer/el-layer.squashfs ]; then
-            EL_ARG="--el-layer build/release/el-layer/el-layer.squashfs"
-          fi
+          # System info
+          echo "thiscloud-${VERSION}" > "$ROOTFS/etc/hostname"
+          echo "$VERSION" > "$ROOTFS/etc/thpkg/version"
 
-          if [ -f "$DEPLOY_DIR/$MACHINE/bzImage" ]; then
-            # Full build: use Yocto artifacts
-            bash os/kernel/create-slot.sh \
-              --image "$DEPLOY_DIR/$MACHINE/core-image-"*.ext4 \
-              --kernel "$DEPLOY_DIR/$MACHINE/bzImage" \
-              --initrd "$DEPLOY_DIR/$MACHINE/core-image-"*.cpio.gz \
-              $EL_ARG \
-              --output build/release/slot \
-              --version ${{ steps.version.outputs.version }}
-          else
-            # No Yocto: create a minimal demo slot
-            echo "==> Creating minimal demo slot (no Yocto build available)"
-            mkdir -p build/release/slot
+          # Systemd service
+          cp os/packages/thpkg/thpkg-booted-ok.service \
+             "$ROOTFS/usr/lib/systemd/system/"
 
-            # Create a placeholder rootfs
-            mkdir -p /tmp/demo-rootfs/{bin,sbin,etc,proc,sys,dev,tmp,run,boot}
-            echo "THISCLOUD OS v${{ steps.version.outputs.version }}" > /tmp/demo-rootfs/etc/hostname
+          # Create squashfs
+          mksquashfs "$ROOTFS" build/release/slot/slot.squashfs \
+            -noappend -comp gzip -b 1M
 
-            # Create squashfs
-            mksquashfs /tmp/demo-rootfs build/release/slot/slot.squashfs \
-              -noappend -comp gzip 2>/dev/null || {
-              echo "error: mksquashfs not found — install squashfs-tools"
-              exit 1
-            }
+          # Create manifest
+          IMAGE_SHA=$(sha256sum build/release/slot/slot.squashfs | awk '{print $1}')
+          cat > build/release/slot/manifest.json << EOF
+          {
+            "version": "$VERSION",
+            "image_url": "slot.squashfs",
+            "image_sha256": "$IMAGE_SHA",
+            "kernel_url": "",
+            "kernel_sha256": "",
+            "initrd_url": "",
+            "initrd_sha256": "",
+            "signature": "",
+            "el_layer_version": "",
+            "sysexts": []
+          }
+          EOF
 
-            # Create manifest
-            IMAGE_SHA=$(sha256sum build/release/slot/slot.squashfs | awk '{print $1}')
-            cat > build/release/slot/manifest.json << EOF
-            {
-              "version": "${{ steps.version.outputs.version }}",
-              "image_url": "slot.squashfs",
-              "image_sha256": "$IMAGE_SHA",
-              "kernel_url": "",
-              "kernel_sha256": "",
-              "initrd_url": "",
-              "initrd_sha256": "",
-              "signature": "",
-              "el_layer_version": "",
-              "sysexts": []
-            }
-            EOF
-
-            echo "    Demo slot created"
-            ls -lh build/release/slot/
-          fi
+          echo "==> Slot created"
+          ls -lh build/release/slot/
 
       - name: Build installer ISO
         run: |
+          VERSION=${{ steps.version.outputs.version }}
           bash os/kernel/build-installer.sh \
             --slot build/release/slot/slot.squashfs \
             --output build/release \
-            --version ${{ steps.version.outputs.version }}
+            --version "$VERSION"
 
       - name: Summary
         run: |
           echo ""
           echo "============================================"
-          echo "  Build complete — artifacts:"
+          echo "  Build complete"
           echo "============================================"
           ls -lh build/release/
-          echo ""
+          file build/release/*.iso 2>/dev/null || true
 
       - name: Upload ISO
         uses: actions/upload-artifact@v4

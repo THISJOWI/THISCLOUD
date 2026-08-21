@@ -77,8 +77,8 @@ jobs:
   # ── EL layer build (AlmaLinux 9 only) ───────────────────────────────
 
   el-layer:
-    name: EL Layer (AlmaLinux 9)
-    runs-on: [self-hosted, AlmaLinux-9]
+    name: EL Layer
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -93,11 +93,11 @@ jobs:
           ls -lh build/release/el-layer/
           file build/release/el-layer/*.squashfs
 
-  # ── Full pipeline (AlmaLinux 9, main only) ──────────────────────────
+  # ── Full pipeline (main only) ──────────────────────────────────────
 
   pipeline:
     name: Full Pipeline
-    runs-on: [self-hosted, AlmaLinux-9]
+    runs-on: ubuntu-latest
     needs: [rust, el-layer]
     if: github.ref == 'refs/heads/main'
     steps:
@@ -109,8 +109,6 @@ jobs:
 
       - name: Build installer ISO
         run: |
-          # Build installer from the assembled slot
-          ls -lh build/release/slot/
           bash os/kernel/build-installer.sh \
             --slot build/release/slot/slot.squashfs \
             --output build/release \
