@@ -147,10 +147,11 @@ jobs:
           OUR_INITRD=$(ls build/rootfs/boot/initrd.img-* 2>/dev/null | head -1)
           echo "Using kernel: ${OUR_KERNEL:-none}"
           echo "Using initrd: ${OUR_INITRD:-none}"
+          echo "Using rootfs: build/rootfs"
           bash os/kernel/build-installer.sh \
-            --slot build/release/slot/slot.squashfs \
             --output build/release \
             --version "$VERSION" \
+            --rootfs build/rootfs \
             ${OUR_KERNEL:+--kernel "$OUR_KERNEL"} \
             ${OUR_INITRD:+--initrd "$OUR_INITRD"}
 

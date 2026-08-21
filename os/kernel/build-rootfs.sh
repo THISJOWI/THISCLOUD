@@ -39,6 +39,10 @@ mkdir -p "$OUTPUT"
 sudo debootstrap \
     --variant=minbase \
     --include=systemd,systemd-sysv,dbus,iproute2,iptables,iputils-ping,curl,kmod,udev,initramfs-tools \
+    --include=sudo,vim,nano,less,psmisc,procps,iproute2,ethtool \
+    --include=net-tools,openssh-server,openssh-client,curl,wget \
+    --include=e2fsprogs,dosfstools,parted,gdisk,blkid \
+    --include=syslinux,syslinux-common,isolinux \
     "$SUITE" "$OUTPUT" http://deb.debian.org/debian
 
 # ── 2. Install vanilla kernel ─────────────────────────────────────
