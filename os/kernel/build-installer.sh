@@ -156,7 +156,7 @@ if [ -f "$ROOTFS/boot/vmlinuz" ]; then
             -full-iso9660-filenames \
             -volid "THISCLOUD" \
             -output "$ISO_FILE" \
-            -eltorito-boot "$ROOTFS/boot/vmlinuz" \
+            -eltorito-boot boot/vmlinuz \
                 -no-emul-boot \
                 -boot-load-size 4096 \
                 -boot-info-table \
