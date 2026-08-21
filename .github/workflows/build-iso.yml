@@ -71,8 +71,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools xorriso \
-            linux-image-generic initramfs-tools
+          sudo apt-get install -y squashfs-tools xorriso debootstrap
 
       - name: Determine version
         id: version
@@ -84,46 +83,40 @@ jobs:
       - name: Build thpkg binary
         run: cargo build -p thpkg --release
 
-      - name: Create demo slot
+      - name: Create complete rootfs
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          bash os/kernel/build-rootfs.sh \
+            --output build/rootfs \
+            --version "$VERSION"
+
+      - name: Create squashfs slot
         run: |
           VERSION=${{ steps.version.outputs.version }}
           mkdir -p build/release/slot
 
-          # Create a minimal rootfs
-          ROOTFS=/tmp/demo-rootfs
-          rm -rf "$ROOTFS"
-          mkdir -p "$ROOTFS"/{bin,sbin,usr/bin,usr/sbin,etc,proc,sys,dev,tmp,run,boot}
-          mkdir -p "$ROOTFS/usr/lib/systemd/system"
-          mkdir -p "$ROOTFS/usr/bin"
-          mkdir -p "$ROOTFS/etc/thpkg"
+          # Copy kernel and initrd from rootfs to slot
+          cp build/rootfs/boot/vmlinuz-* build/release/slot/vmlinuz 2>/dev/null || true
+          cp build/rootfs/boot/initrd.img-* build/release/slot/initrd 2>/dev/null || true
 
-          # Install thpkg binary
-          cp target/release/thpkg "$ROOTFS/usr/bin/thpkg"
-          chmod +x "$ROOTFS/usr/bin/thpkg"
-
-          # System info
-          echo "thiscloud-${VERSION}" > "$ROOTFS/etc/hostname"
-          echo "$VERSION" > "$ROOTFS/etc/thpkg/version"
-
-          # Systemd service
-          cp os/packages/thpkg/thpkg-booted-ok.service \
-             "$ROOTFS/usr/lib/systemd/system/"
-
-          # Create squashfs
-          mksquashfs "$ROOTFS" build/release/slot/slot.squashfs \
-            -noappend -comp gzip -b 1M
+          # Create squashfs of the rootfs (excluding /boot to keep slot small)
+          mksquashfs build/rootfs build/release/slot/slot.squashfs \
+            -noappend -comp gzip -b 1M \
+            -e boot
 
           # Create manifest
           IMAGE_SHA=$(sha256sum build/release/slot/slot.squashfs | awk '{print $1}')
+          KERNEL_SHA=$(sha256sum build/release/slot/vmlinuz 2>/dev/null | awk '{print $1}' || echo "")
+          INITRD_SHA=$(sha256sum build/release/slot/initrd 2>/dev/null | awk '{print $1}' || echo "")
           cat > build/release/slot/manifest.json << EOF
           {
             "version": "$VERSION",
             "image_url": "slot.squashfs",
             "image_sha256": "$IMAGE_SHA",
-            "kernel_url": "",
-            "kernel_sha256": "",
-            "initrd_url": "",
-            "initrd_sha256": "",
+            "kernel_url": "vmlinuz",
+            "kernel_sha256": "$KERNEL_SHA",
+            "initrd_url": "initrd",
+            "initrd_sha256": "$INITRD_SHA",
             "signature": "",
             "el_layer_version": "",
             "sysexts": []
@@ -136,16 +129,17 @@ jobs:
       - name: Build installer ISO
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          SYS_KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | head -1)
-          SYS_INITRD=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
-          echo "Using kernel: ${SYS_KERNEL:-none}"
-          echo "Using initrd: ${SYS_INITRD:-none}"
+          # Use kernel from our rootfs (Debian's vanilla Linux kernel)
+          ROOTFS_KERNEL=$(ls build/rootfs/boot/vmlinuz-* 2>/dev/null | head -1)
+          ROOTFS_INITRD=$(ls build/rootfs/boot/initrd.img-* 2>/dev/null | head -1)
+          echo "Using kernel: ${ROOTFS_KERNEL:-none}"
+          echo "Using initrd: ${ROOTFS_INITRD:-none}"
           bash os/kernel/build-installer.sh \
             --slot build/release/slot/slot.squashfs \
             --output build/release \
             --version "$VERSION" \
-            ${SYS_KERNEL:+--kernel "$SYS_KERNEL"} \
-            ${SYS_INITRD:+--initrd "$SYS_INITRD"}
+            ${ROOTFS_KERNEL:+--kernel "$ROOTFS_KERNEL"} \
+            ${ROOTFS_INITRD:+--initrd "$ROOTFS_INITRD"}
 
       - name: Summary
         run: |
