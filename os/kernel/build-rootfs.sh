@@ -93,7 +93,7 @@ if [ -f "${SCRIPT_DIR}/../packages/thpkg/thpkg-booted-ok.service" ]; then
 fi
 
 # first-run service
-cat > "$OUTPUT/usr/lib/systemd/system/thiscloud-first-run.service" << 'UNIT'
+sudo tee "$OUTPUT/usr/lib/systemd/system/thiscloud-first-run.service" > /dev/null << 'UNIT'
 [Unit]
 Description=THISCLOUD First Run Configuration
 After=network-online.target
@@ -119,8 +119,8 @@ sudo ln -sf /usr/lib/systemd/system/thiscloud-first-run.service \
 
 echo "==> Configuring network..."
 
-mkdir -p "$OUTPUT/etc/systemd/network"
-cat > "$OUTPUT/etc/systemd/network/20-wired.network" << 'NETWORK'
+sudo mkdir -p "$OUTPUT/etc/systemd/network"
+sudo tee "$OUTPUT/etc/systemd/network/20-wired.network" > /dev/null << 'NETWORK'
 [Match]
 Name=en* eth*
 
