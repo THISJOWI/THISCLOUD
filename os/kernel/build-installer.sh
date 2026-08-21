@@ -56,7 +56,7 @@ KERNEL_FILE=""
 if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
     KERNEL_FILE="$KERNEL"
 elif [ -n "$ROOTFS_SOURCE" ]; then
-    KERNEL_FILE=$(ls "$ROOTFS_SOURCE"/boot/vmlinuz-* 2>/dev/null | head -1)
+    KERNEL_FILE=$(ls "$ROOTFS_SOURCE"/boot/vmlinuz-* 2>/dev/null | head -1 || true)
 fi
 
 if [ -z "$KERNEL_FILE" ] || [ ! -f "$KERNEL_FILE" ]; then
@@ -72,7 +72,7 @@ INITRD_FILE=""
 if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
     INITRD_FILE="$INITRD"
 elif [ -n "$ROOTFS_SOURCE" ]; then
-    INITRD_FILE=$(ls "$ROOTFS_SOURCE"/boot/initrd.img-* 2>/dev/null | head -1)
+    INITRD_FILE=$(ls "$ROOTFS_SOURCE"/boot/initrd.img-* 2>/dev/null | head -1 || true)
 fi
 
 if [ -z "$INITRD_FILE" ] || [ ! -f "$INITRD_FILE" ]; then
@@ -105,10 +105,12 @@ fi
 
 # Copy slot squashfs if available
 if [ -n "$ROOTFS_SOURCE" ]; then
-    SLOT_FILE=$(ls "$ROOTFS_SOURCE"/usr/share/installer/*.squashfs 2>/dev/null | head -1)
+    SLOT_FILE=$(ls "$ROOTFS_SOURCE"/usr/share/installer/*.squashfs 2>/dev/null | head -1 || true)
     if [ -n "$SLOT_FILE" ] && [ -f "$SLOT_FILE" ]; then
         cp "$SLOT_FILE" "$MEDIA/install/slot.squashfs"
         echo "    Slot: $SLOT_FILE"
+    else
+        echo "    No slot squashfs found (will install from ISO)"
     fi
 fi
 
