@@ -11,16 +11,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="${VERSION:-0.1.0}"
 OUTPUT=""
-KERNEL=""
-INITRD=""
 SUITE="bookworm"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --output) OUTPUT="$2"; shift 2 ;;
         --version) VERSION="$2"; shift 2 ;;
-        --kernel) KERNEL="$2"; shift 2 ;;
-        --initrd) INITRD="$2"; shift 2 ;;
         --suite) SUITE="$2"; shift 2 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
@@ -49,7 +45,6 @@ sudo chroot "$OUTPUT" bash -c "apt-get update && apt-get install -y --no-install
 
 # Find the installed kernel
 INSTALLED_VMLINUZ=$(sudo find "$OUTPUT/boot" -name "vmlinuz-*" | head -1)
-INSTALLED_INITRD=$(sudo find "$OUTPUT/boot" -name "initrd.img-*" | head -1)
 
 if [ -n "$INSTALLED_VMLINUZ" ]; then
     echo "    Installed kernel: $(basename "$INSTALLED_VMLINUZ")"
