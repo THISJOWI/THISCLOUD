@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Build the THISCLOUD installer ISO.
-# Creates a minimal bootable image that runs the installer script.
+# Creates a bootable image with vanilla kernel and systemd-boot.
 #
 # Usage:
 #   ./build-installer.sh \
+#     --kernel /path/to/vmlinuz \
+#     --initrd /path/to/initrd.img \
 #     --slot /path/to/slot.squashfs \
 #     --output /path/to/output \
-#     --version 0.4.0 \
-#     [--kernel /boot/vmlinuz-...] \
-#     [--initrd /boot/initrd.img-...]
+#     --version 0.4.0
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,17 +21,17 @@ WORK_DIR=$(mktemp -d /tmp/thcloud-iso-XXXXXX)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --kernel) KERNEL="$2"; shift 2 ;;
+        --initrd) INITRD="$2"; shift 2 ;;
         --slot) SLOT="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         --version) VERSION="$2"; shift 2 ;;
-        --kernel) KERNEL="$2"; shift 2 ;;
-        --initrd) INITRD="$2"; shift 2 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
 done
 
-if [ -z "$SLOT" ] || [ -z "$OUTPUT" ]; then
-    echo "error: --slot and --output are required"
+if [ -z "$OUTPUT" ]; then
+    echo "error: --output is required"
     exit 1
 fi
 
@@ -54,27 +54,45 @@ mkdir -p "$ROOTFS/boot/loader/entries"
 cp "$SCRIPT_DIR/installer.sh" "$ROOTFS/usr/share/installer/installer.sh"
 chmod +x "$ROOTFS/usr/share/installer/installer.sh"
 
-# Copy slot squashfs into the media
-echo "==> Copying slot into installer media..."
-cp "$SLOT" "$ROOTFS/usr/share/installer/slot.squashfs"
+# Copy slot squashfs into the media (if provided)
+if [ -n "$SLOT" ] && [ -f "$SLOT" ]; then
+    echo "==> Copying slot into installer media..."
+    cp "$SLOT" "$ROOTFS/usr/share/installer/slot.squashfs"
+fi
 
-# Copy kernel and initrd — prefer explicit args, then slot, then rootfs
+# ── 2. Install kernel and initrd ──────────────────────────────────────
+
+echo "==> Installing kernel and initrd..."
+
+# Copy kernel
 if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
     sudo cp "$KERNEL" "$ROOTFS/boot/vmlinuz"
-elif [ -f "$SLOT_TMP/vmlinuz" ]; then
-    cp "$SLOT_TMP/vmlinuz" "$ROOTFS/boot/vmlinuz"
+    echo "    Kernel: $KERNEL"
+elif [ -f "/boot/vmlinuz" ]; then
+    sudo cp /boot/vmlinuz "$ROOTFS/boot/vmlinuz"
+    echo "    Kernel: /boot/vmlinuz"
+else
+    echo "error: no kernel found"
+    exit 1
 fi
 
+# Copy initrd
 if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
     sudo cp "$INITRD" "$ROOTFS/boot/initrd"
-elif [ -f "$SLOT_TMP/initrd" ]; then
-    cp "$SLOT_TMP/initrd" "$ROOTFS/boot/initrd"
+    echo "    Initrd: $INITRD"
+elif [ -f "/boot/initrd" ]; then
+    sudo cp /boot/initrd "$ROOTFS/boot/initrd"
+    echo "    Initrd: /boot/initrd"
+else
+    echo "    warning: no initrd found"
 fi
 
-# Make boot files readable (kernel/initrd were sudo-cp'd, root-owned)
+# Make boot files readable
 sudo chmod -R a+r "$ROOTFS/boot"
 
-# ── 2. systemd-boot loader config ───────────────────────────────────
+# ── 3. systemd-boot loader config ───────────────────────────────────
+
+echo "==> Creating bootloader config..."
 
 cat > "$ROOTFS/boot/loader/loader.conf" << 'LOADER'
 default thiscloud-installer.conf
@@ -90,7 +108,7 @@ initrd  /initrd
 options root=/dev/ram0 rdinit=/sbin/init
 EOF
 
-# ── 3. systemd service to run installer on boot ──────────────────────
+# ── 4. systemd service to run installer on boot ──────────────────────
 
 cat > "$ROOTFS/usr/lib/systemd/system/thcloud-installer.service" << 'UNIT'
 [Unit]
@@ -108,7 +126,7 @@ StandardError=journal+console
 WantedBy=multi-user.target
 UNIT
 
-# ── 4. Install busybox (static) if available ─────────────────────────
+# ── 5. Install busybox (static) if available ─────────────────────────
 
 if command -v busybox >/dev/null 2>&1; then
     sudo cp "$(which busybox)" "$ROOTFS/bin/busybox"
@@ -119,29 +137,14 @@ if command -v busybox >/dev/null 2>&1; then
     done
 fi
 
-# ── 5. Prepare initrd for ISO boot ──────────────────────────────────
-
-echo "==> Preparing installer initrd..."
-ISO_INITRD="$WORK_DIR/initrd.cpio.gz"
-# Use the initrd we received (from rootfs or explicit arg)
-if [ -f "$ROOTFS/boot/initrd" ]; then
-    sudo cp "$ROOTFS/boot/initrd" "$ISO_INITRD"
-    echo "    Using rootfs initrd"
-elif [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
-    sudo cp "$INITRD" "$ISO_INITRD"
-    echo "    Using provided initrd"
-else
-    echo "    warning: no initrd found, ISO may not boot"
-fi
-
-# ── 6. Build ISO with xorriso ───────────────────────────────────────
+# ── 6. Build ISO ─────────────────────────────────────────────────────
 
 echo "==> Building ISO..."
 ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
 ls -la "$ROOTFS/boot/"
 
-# If vmlinuz exists in rootfs, try creating a proper ISO
 if [ -f "$ROOTFS/boot/vmlinuz" ]; then
+    # Try xorriso first
     if command -v xorriso >/dev/null 2>&1; then
         xorriso -as mkisofs \
             -iso-level 3 \
@@ -152,32 +155,31 @@ if [ -f "$ROOTFS/boot/vmlinuz" ]; then
                 -no-emul-boot \
                 -boot-load-size 32768 \
                 -boot-info-table \
-            "$ROOTFS" || {
-            echo "    xorriso failed, trying genisoimage..."
+            "$ROOTFS" 2>&1 && {
+            echo "    ISO created with xorriso"
+        } || {
+            echo "    xorriso failed"
         }
-    else
-        echo "    xorriso not found, trying genisoimage..."
     fi
-fi
 
-# If ISO wasn't created, try genisoimage
-if [ ! -f "$ISO_FILE" ] && [ -f "$ROOTFS/boot/vmlinuz" ]; then
-    if command -v genisoimage >/dev/null 2>&1; then
+    # Try genisoimage if ISO not created
+    if [ ! -f "$ISO_FILE" ] && command -v genisoimage >/dev/null 2>&1; then
         genisoimage -o "$ISO_FILE" \
             -R -J -V "THISCLOUD" \
             -b boot/vmlinuz \
-            "$ROOTFS" || {
-            echo "    genisoimage failed, creating rootfs tarball..."
+            -c boot/boot.cat \
+            "$ROOTFS" 2>&1 && {
+            echo "    ISO created with genisoimage"
+        } || {
+            echo "    genisoimage failed"
         }
-    else
-        echo "    genisoimage not found, creating rootfs tarball..."
     fi
 fi
 
-# If still no ISO, create a tarball of the rootfs
+# Fallback: tarball
 if [ ! -f "$ISO_FILE" ]; then
     ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-rootfs.tar.gz"
-    echo "    Creating rootfs tarball"
+    echo "    Creating rootfs tarball instead"
     tar -czf "$ISO_FILE" -C "$ROOTFS" .
 fi
 

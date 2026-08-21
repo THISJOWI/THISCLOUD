@@ -71,7 +71,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools xorriso debootstrap
+          sudo apt-get install -y squashfs-tools xorriso debootstrap \
+            build-essential flex bison bc libssl-dev libelf-dev \
+            cpio kmod libncurses-dev
 
       - name: Determine version
         id: version
@@ -83,12 +85,23 @@ jobs:
       - name: Build thpkg binary
         run: cargo build -p thpkg --release
 
+      - name: Build vanilla Linux kernel
+        run: |
+          bash os/kernel/build-kernel.sh \
+            --version 6.15.6 \
+            --output build/kernel \
+            --jobs $(nproc)
+          echo "Kernel built:"
+          ls -lh build/kernel/boot/
+
       - name: Create complete rootfs
         run: |
           VERSION=${{ steps.version.outputs.version }}
           bash os/kernel/build-rootfs.sh \
             --output build/rootfs \
-            --version "$VERSION"
+            --version "$VERSION" \
+            --kernel-version $(ls build/kernel/boot/vmlinuz-* | head -1 | xargs basename | sed 's/^vmlinuz-//') \
+            --kernel-dir build/kernel
 
       - name: Create squashfs slot
         run: |
@@ -129,17 +142,17 @@ jobs:
       - name: Build installer ISO
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          # Use kernel from our rootfs (Debian's vanilla Linux kernel)
-          ROOTFS_KERNEL=$(ls build/rootfs/boot/vmlinuz-* 2>/dev/null | head -1)
-          ROOTFS_INITRD=$(ls build/rootfs/boot/initrd.img-* 2>/dev/null | head -1)
-          echo "Using kernel: ${ROOTFS_KERNEL:-none}"
-          echo "Using initrd: ${ROOTFS_INITRD:-none}"
+          # Use kernel from our build
+          OUR_KERNEL=$(ls build/kernel/boot/vmlinuz-* 2>/dev/null | head -1)
+          OUR_INITRD=$(ls build/rootfs/boot/initrd.img-* 2>/dev/null | head -1)
+          echo "Using kernel: ${OUR_KERNEL:-none}"
+          echo "Using initrd: ${OUR_INITRD:-none}"
           bash os/kernel/build-installer.sh \
             --slot build/release/slot/slot.squashfs \
             --output build/release \
             --version "$VERSION" \
-            ${ROOTFS_KERNEL:+--kernel "$ROOTFS_KERNEL"} \
-            ${ROOTFS_INITRD:+--initrd "$ROOTFS_INITRD"}
+            ${OUR_KERNEL:+--kernel "$OUR_KERNEL"} \
+            ${OUR_INITRD:+--initrd "$OUR_INITRD"}
 
       - name: Summary
         run: |
