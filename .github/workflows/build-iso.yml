@@ -71,7 +71,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools xorriso
+          sudo apt-get install -y squashfs-tools xorriso \
+            linux-image-generic initramfs-tools
 
       - name: Determine version
         id: version
@@ -135,10 +136,16 @@ jobs:
       - name: Build installer ISO
         run: |
           VERSION=${{ steps.version.outputs.version }}
+          SYS_KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | head -1)
+          SYS_INITRD=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
+          echo "Using kernel: ${SYS_KERNEL:-none}"
+          echo "Using initrd: ${SYS_INITRD:-none}"
           bash os/kernel/build-installer.sh \
             --slot build/release/slot/slot.squashfs \
             --output build/release \
-            --version "$VERSION"
+            --version "$VERSION" \
+            ${SYS_KERNEL:+--kernel "$SYS_KERNEL"} \
+            ${SYS_INITRD:+--initrd "$SYS_INITRD"}
 
       - name: Summary
         run: |

@@ -6,13 +6,17 @@
 #   ./build-installer.sh \
 #     --slot /path/to/slot.squashfs \
 #     --output /path/to/output \
-#     --version 0.4.0
+#     --version 0.4.0 \
+#     [--kernel /boot/vmlinuz-...] \
+#     [--initrd /boot/initrd.img-...]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="${VERSION:-0.1.0}"
 OUTPUT=""
 SLOT=""
+KERNEL=""
+INITRD=""
 WORK_DIR=$(mktemp -d /tmp/thcloud-iso-XXXXXX)
 
 while [[ $# -gt 0 ]]; do
@@ -20,6 +24,8 @@ while [[ $# -gt 0 ]]; do
         --slot) SLOT="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         --version) VERSION="$2"; shift 2 ;;
+        --kernel) KERNEL="$2"; shift 2 ;;
+        --initrd) INITRD="$2"; shift 2 ;;
         *) echo "Unknown: $1"; exit 1 ;;
     esac
 done
@@ -52,19 +58,30 @@ chmod +x "$ROOTFS/usr/share/installer/installer.sh"
 echo "==> Copying slot into installer media..."
 cp "$SLOT" "$ROOTFS/usr/share/installer/slot.squashfs"
 
-# Extract kernel and initrd from the slot
-SLOT_TMP=$(mktemp -d)
-if command -v unsquashfs >/dev/null 2>&1; then
-    unsquashfs -d "$SLOT_TMP" "$SLOT" >/dev/null 2>&1 || true
+# Copy kernel and initrd — prefer explicit args, then slot, then system
+if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
+    cp "$KERNEL" "$ROOTFS/boot/vmlinuz"
+elif [ -f "$SLOT_TMP/vmlinuz" ]; then
+    cp "$SLOT_TMP/vmlinuz" "$ROOTFS/boot/vmlinuz"
+else
+    # Fall back to system kernel
+    SYS_KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | head -1)
+    if [ -n "$SYS_KERNEL" ]; then
+        cp "$SYS_KERNEL" "$ROOTFS/boot/vmlinuz"
+    fi
 fi
 
-if [ -f "$SLOT_TMP/vmlinuz" ]; then
-    cp "$SLOT_TMP/vmlinuz" "$ROOTFS/boot/vmlinuz"
-fi
-if [ -f "$SLOT_TMP/initrd" ]; then
+if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
+    cp "$INITRD" "$ROOTFS/boot/initrd"
+elif [ -f "$SLOT_TMP/initrd" ]; then
     cp "$SLOT_TMP/initrd" "$ROOTFS/boot/initrd"
+else
+    # Fall back to system initrd
+    SYS_INITRD=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
+    if [ -n "$SYS_INITRD" ]; then
+        cp "$SYS_INITRD" "$ROOTFS/boot/initrd"
+    fi
 fi
-rm -rf "$SLOT_TMP"
 
 # ── 2. systemd-boot loader config ───────────────────────────────────
 
