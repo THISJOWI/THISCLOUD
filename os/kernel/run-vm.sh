@@ -55,5 +55,6 @@ qemu-system-x86_64 \
     -nographic \
     -no-reboot
 
+QEMU_EXIT=$?
 echo ""
-echo "==> VM exited (exit code: $?)"
+echo "==> VM exited (exit code: $QEMU_EXIT)"

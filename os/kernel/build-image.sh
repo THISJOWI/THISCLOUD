@@ -16,7 +16,6 @@ YOCTO_DIR="${SCRIPT_DIR}/build/yocto"
 LAYERS_DIR="${SCRIPT_DIR}/meta-thiscloud"
 BUILD_DIR="${SCRIPT_DIR}/build"
 MACHINE="${MACHINE:-qemu-x86-64}"
-DISTRO="poky"
 CLEAN=0
 
 # Parse args

@@ -12,7 +12,6 @@
 #     --version 0.4.0
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="${VERSION:-0.1.0}"
 OUTPUT=""
 IMAGE=""
