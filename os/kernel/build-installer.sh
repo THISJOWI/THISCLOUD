@@ -60,26 +60,24 @@ cp "$SLOT" "$ROOTFS/usr/share/installer/slot.squashfs"
 
 # Copy kernel and initrd — prefer explicit args, then slot, then system
 if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
-    cp "$KERNEL" "$ROOTFS/boot/vmlinuz"
+    sudo cp "$KERNEL" "$ROOTFS/boot/vmlinuz"
 elif [ -f "$SLOT_TMP/vmlinuz" ]; then
     cp "$SLOT_TMP/vmlinuz" "$ROOTFS/boot/vmlinuz"
 else
-    # Fall back to system kernel
     SYS_KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | head -1)
     if [ -n "$SYS_KERNEL" ]; then
-        cp "$SYS_KERNEL" "$ROOTFS/boot/vmlinuz"
+        sudo cp "$SYS_KERNEL" "$ROOTFS/boot/vmlinuz"
     fi
 fi
 
 if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
-    cp "$INITRD" "$ROOTFS/boot/initrd"
+    sudo cp "$INITRD" "$ROOTFS/boot/initrd"
 elif [ -f "$SLOT_TMP/initrd" ]; then
     cp "$SLOT_TMP/initrd" "$ROOTFS/boot/initrd"
 else
-    # Fall back to system initrd
     SYS_INITRD=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
     if [ -n "$SYS_INITRD" ]; then
-        cp "$SYS_INITRD" "$ROOTFS/boot/initrd"
+        sudo cp "$SYS_INITRD" "$ROOTFS/boot/initrd"
     fi
 fi
 
