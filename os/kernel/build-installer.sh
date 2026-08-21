@@ -143,21 +143,21 @@ ls -la "$ROOTFS/boot/"
 # If vmlinuz exists in rootfs, try creating a proper ISO
 if [ -f "$ROOTFS/boot/vmlinuz" ]; then
     if command -v xorriso >/dev/null 2>&1; then
-        INITRD_FLAG=""
+        Xorriso_args=(
+            -as mkisofs
+            -iso-level 3
+            -full-iso9660-filenames
+            -volid "THISCLOUD"
+            -output "$ISO_FILE"
+            -eltorito-boot boot/vmlinuz
+                -no-emul-boot
+                -boot-load-size 4096
+                -boot-info-table
+        )
         if [ -f "$ISO_INITRD" ]; then
-            INITRD_FLAG="-eltorito-initrd boot/initrd -no-emul-boot"
+            Xorriso_args+=(-eltorito-boot boot/initrd -no-emul-boot)
         fi
-        xorriso -as mkisofs \
-            -iso-level 3 \
-            -full-iso9660-filenames \
-            -volid "THISCLOUD" \
-            -output "$ISO_FILE" \
-            -eltorito-boot boot/vmlinuz \
-                -no-emul-boot \
-                -boot-load-size 4096 \
-                -boot-info-table \
-            $INITRD_FLAG \
-            "$ROOTFS" || {
+        xorriso "${Xorriso_args[@]}" "$ROOTFS" || {
             echo "    xorriso failed, trying genisoimage..."
         }
     else
