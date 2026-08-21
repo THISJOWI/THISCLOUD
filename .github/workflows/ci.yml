@@ -18,12 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [thiscloudd, thiscloud, thpkg]
+        package: [thiscloudd, thiscloud-cli, thpkg]
         include:
           - package: thiscloudd
             test_cmd: cargo test -p thiscloudd
-          - package: thiscloud
-            test_cmd: cargo test -p thiscloud
+          - package: thiscloud-cli
+            test_cmd: cargo test -p thiscloud-cli
           - package: thpkg
             test_cmd: cargo test -p thpkg
 
