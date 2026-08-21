@@ -90,11 +90,16 @@ sudo chmod -R a+r "$MEDIA/boot"
 echo "==> Installing installer..."
 
 # Use the installer script from the OS directory
-if [ -f "${SCRIPT_DIR}/installer.sh" ]; then
-    cp "${SCRIPT_DIR}/installer.sh" "$MEDIA/install/installer.sh"
+INSTALLER_SRC="${SCRIPT_DIR}/installer.sh"
+if [ -f "$INSTALLER_SRC" ]; then
+    echo "    Source: $INSTALLER_SRC"
+    cp "$INSTALLER_SRC" "$MEDIA/install/installer.sh"
     chmod +x "$MEDIA/install/installer.sh"
+    echo "    Installed installer.sh"
 else
-    echo "error: installer.sh not found"
+    echo "    error: installer.sh not found at $INSTALLER_SRC"
+    echo "    SCRIPT_DIR=$SCRIPT_DIR"
+    ls -la "$SCRIPT_DIR/" | head -20
     exit 1
 fi
 
