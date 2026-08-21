@@ -43,6 +43,10 @@ else
     tar -xf "${CACHE_DIR}/${TARBALL}" -C "$CACHE_DIR"
 fi
 
+# Resolve to absolute paths before cd
+OUTPUT="$(cd "$OUTPUT" 2>/dev/null && pwd || (mkdir -p "$OUTPUT" && cd "$OUTPUT" && pwd))"
+CACHE_DIR="$(cd "$CACHE_DIR" 2>/dev/null && pwd || (mkdir -p "$CACHE_DIR" && cd "$CACHE_DIR" && pwd))"
+
 # ── 2. Configure kernel ───────────────────────────────────────────
 
 echo "==> Configuring kernel..."
