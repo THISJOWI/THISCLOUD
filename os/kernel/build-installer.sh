@@ -128,9 +128,16 @@ fi
 
 # ── 5. Create initrd (cpio.gz) ──────────────────────────────────────
 
-echo "==> Creating installer initrd..."
+echo "==> Preparing installer initrd..."
 INITRD="$WORK_DIR/initrd.cpio.gz"
-(cd "$ROOTFS" && find . -print0 | cpio --null -o --format=newc 2>/dev/null | gzip -9) > "$INITRD"
+# Use the system initrd directly — generating from rootfs is unreliable
+SYS_INITRD_FILE=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
+if [ -n "$SYS_INITRD_FILE" ]; then
+    sudo cp "$SYS_INITRD_FILE" "$INITRD"
+    echo "    Using system initrd: $SYS_INITRD_FILE"
+else
+    echo "    warning: no system initrd found, ISO may not boot"
+fi
 
 # ── 6. Build ISO with xorriso ───────────────────────────────────────
 
