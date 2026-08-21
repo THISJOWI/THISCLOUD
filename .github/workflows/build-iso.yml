@@ -158,3 +158,33 @@ jobs:
             build/release/slot/manifest.json
             build/release/slot/*.squashfs
           retention-days: 7
+
+      - name: Upload ISO to Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: https://download.thisjowi.com
+        run: |
+          if [[ -z "$R2_ACCOUNT_ID" || -z "$R2_ACCESS_KEY_ID" || -z "$R2_SECRET_ACCESS_KEY" || -z "$R2_BUCKET" ]]; then
+            echo "R2 secrets not configured, skipping upload"
+            exit 0
+          fi
+          VERSION=${{ steps.version.outputs.version }}
+          ISO=$(ls build/release/*.iso 2>/dev/null | head -1)
+          if [ -z "$ISO" ] || [ ! -f "$ISO" ]; then
+            echo "::error::ISO not found in build/release/"
+            exit 1
+          fi
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION=auto
+          KEY="releases/${VERSION}/$(basename "$ISO")"
+          aws s3 cp --endpoint-url \
+            "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            "$ISO" \
+            "s3://${R2_BUCKET}/${KEY}" \
+            --quiet
+          echo "uploaded to R2: $KEY"
+          echo "download: ${R2_PUBLIC_URL}/${KEY}"
