@@ -122,41 +122,37 @@ INITRD="$WORK_DIR/initrd.cpio.gz"
 echo "==> Building ISO..."
 ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
 
-if command -v xorriso >/dev/null 2>&1; then
-    xorriso -as mkisofs \
-        -iso-level 3 \
-        -full-iso9660-filenames \
-        -volid "THISCLOUD" \
-        -output "$ISO_FILE" \
-        -eltorito-boot "$ROOTFS/boot/vmlinuz" \
-            -no-emul-boot \
-            -boot-load-size 4096 \
-            -boot-info-table \
-            --eltorito-catalog "$ROOTFS/boot/grub/boot.cat" \
-        "$ROOTFS" 2>/dev/null || {
-        echo "    xorriso failed, trying genisoimage..."
+# If vmlinuz exists in rootfs, try creating a proper ISO
+if [ -f "$ROOTFS/boot/vmlinuz" ]; then
+    if command -v xorriso >/dev/null 2>&1; then
+        xorriso -as mkisofs \
+            -iso-level 3 \
+            -full-iso9660-filenames \
+            -volid "THISCLOUD" \
+            -output "$ISO_FILE" \
+            -eltorito-boot "$ROOTFS/boot/vmlinuz" \
+                -no-emul-boot \
+                -boot-load-size 4096 \
+                -boot-info-table \
+            "$ROOTFS" 2>/dev/null || true
+    fi
+fi
+
+# If ISO wasn't created, try genisoimage
+if [ ! -f "$ISO_FILE" ] && [ -f "$ROOTFS/boot/vmlinuz" ]; then
+    if command -v genisoimage >/dev/null 2>&1; then
         genisoimage -o "$ISO_FILE" \
             -R -J -V "THISCLOUD" \
             -b boot/vmlinuz \
-            -c boot/grub/boot.cat \
-            "$ROOTFS" 2>/dev/null || {
-            echo "    genisoimage failed, creating raw image..."
-            # Fallback: just create a tarball of the rootfs
-            tar -czf "$OUTPUT/ThisCloud-${VERSION}-installer-rootfs.tar.gz" \
-                -C "$ROOTFS" .
-            echo "    Created rootfs tarball instead of ISO"
-            return 0 2>/dev/null || exit 0
-        }
-    }
-elif command -v genisoimage >/dev/null 2>&1; then
-    genisoimage -o "$ISO_FILE" \
-        -R -J -V "THISCLOUD" \
-        -b boot/vmlinuz \
-        "$ROOTFS"
-else
-    echo "error: neither xorriso nor genisoimage found"
-    echo "  Install: dnf install xorriso genisoimage"
-    exit 1
+            "$ROOTFS" 2>/dev/null || true
+    fi
+fi
+
+# If still no ISO, create a tarball of the rootfs
+if [ ! -f "$ISO_FILE" ]; then
+    ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-rootfs.tar.gz"
+    echo "    ISO tools not available or kernel missing, creating rootfs tarball"
+    tar -czf "$ISO_FILE" -C "$ROOTFS" .
 fi
 
 ISO_SIZE=$(stat -f%z "$ISO_FILE" 2>/dev/null || stat -c%s "$ISO_FILE" 2>/dev/null || echo 0)
