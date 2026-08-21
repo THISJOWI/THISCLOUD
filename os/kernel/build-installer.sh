@@ -58,27 +58,17 @@ chmod +x "$ROOTFS/usr/share/installer/installer.sh"
 echo "==> Copying slot into installer media..."
 cp "$SLOT" "$ROOTFS/usr/share/installer/slot.squashfs"
 
-# Copy kernel and initrd — prefer explicit args, then slot, then system
+# Copy kernel and initrd — prefer explicit args, then slot, then rootfs
 if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
     sudo cp "$KERNEL" "$ROOTFS/boot/vmlinuz"
 elif [ -f "$SLOT_TMP/vmlinuz" ]; then
     cp "$SLOT_TMP/vmlinuz" "$ROOTFS/boot/vmlinuz"
-else
-    SYS_KERNEL=$(ls /boot/vmlinuz-* 2>/dev/null | head -1)
-    if [ -n "$SYS_KERNEL" ]; then
-        sudo cp "$SYS_KERNEL" "$ROOTFS/boot/vmlinuz"
-    fi
 fi
 
 if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
     sudo cp "$INITRD" "$ROOTFS/boot/initrd"
 elif [ -f "$SLOT_TMP/initrd" ]; then
     cp "$SLOT_TMP/initrd" "$ROOTFS/boot/initrd"
-else
-    SYS_INITRD=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
-    if [ -n "$SYS_INITRD" ]; then
-        sudo cp "$SYS_INITRD" "$ROOTFS/boot/initrd"
-    fi
 fi
 
 # Make boot files readable (kernel/initrd were sudo-cp'd, root-owned)
@@ -93,11 +83,11 @@ console-mode auto
 editor no
 LOADER
 
-cat > "$ROOTFS/boot/loader/entries/thiscloud-installer.conf" << EOF
+cat > "$ROOTFS/boot/loader/entries/thiscloud-installer.conf" << 'EOF'
 title   THISCLOUD Installer
 linux   /vmlinuz
 initrd  /initrd
-options console=ttyS0,115200 root=/dev/ram0 rdinit=/usr/share/installer/installer.sh
+options root=/dev/ram0 rdinit=/sbin/init
 EOF
 
 # ── 3. systemd service to run installer on boot ──────────────────────
@@ -121,25 +111,27 @@ UNIT
 # ── 4. Install busybox (static) if available ─────────────────────────
 
 if command -v busybox >/dev/null 2>&1; then
-    cp "$(which busybox)" "$ROOTFS/bin/busybox"
+    sudo cp "$(which busybox)" "$ROOTFS/bin/busybox"
     for cmd in sh mount umount mkdir cp mv ln chmod sync fdisk sfdisk \
                mkfs.vfat mkfs.ext4 partprobe ls cat echo sleep reboot \
                poweroff halt lsblk findblk blkid; do
-        ln -sf busybox "$ROOTFS/bin/$cmd" 2>/dev/null || true
+        sudo ln -sf busybox "$ROOTFS/bin/$cmd" 2>/dev/null || true
     done
 fi
 
-# ── 5. Create initrd (cpio.gz) ──────────────────────────────────────
+# ── 5. Prepare initrd for ISO boot ──────────────────────────────────
 
 echo "==> Preparing installer initrd..."
-INITRD="$WORK_DIR/initrd.cpio.gz"
-# Use the system initrd directly — generating from rootfs is unreliable
-SYS_INITRD_FILE=$(ls /boot/initrd.img-* 2>/dev/null | head -1)
-if [ -n "$SYS_INITRD_FILE" ]; then
-    sudo cp "$SYS_INITRD_FILE" "$INITRD"
-    echo "    Using system initrd: $SYS_INITRD_FILE"
+ISO_INITRD="$WORK_DIR/initrd.cpio.gz"
+# Use the initrd we received (from rootfs or explicit arg)
+if [ -f "$ROOTFS/boot/initrd" ]; then
+    sudo cp "$ROOTFS/boot/initrd" "$ISO_INITRD"
+    echo "    Using rootfs initrd"
+elif [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
+    sudo cp "$INITRD" "$ISO_INITRD"
+    echo "    Using provided initrd"
 else
-    echo "    warning: no system initrd found, ISO may not boot"
+    echo "    warning: no initrd found, ISO may not boot"
 fi
 
 # ── 6. Build ISO with xorriso ───────────────────────────────────────
@@ -151,6 +143,10 @@ ls -la "$ROOTFS/boot/"
 # If vmlinuz exists in rootfs, try creating a proper ISO
 if [ -f "$ROOTFS/boot/vmlinuz" ]; then
     if command -v xorriso >/dev/null 2>&1; then
+        INITRD_FLAG=""
+        if [ -f "$ISO_INITRD" ]; then
+            INITRD_FLAG="-eltorito-initrd boot/initrd -no-emul-boot"
+        fi
         xorriso -as mkisofs \
             -iso-level 3 \
             -full-iso9660-filenames \
@@ -160,6 +156,7 @@ if [ -f "$ROOTFS/boot/vmlinuz" ]; then
                 -no-emul-boot \
                 -boot-load-size 4096 \
                 -boot-info-table \
+            $INITRD_FLAG \
             "$ROOTFS" || {
             echo "    xorriso failed, trying genisoimage..."
         }
