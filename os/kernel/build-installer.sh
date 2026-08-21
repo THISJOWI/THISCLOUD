@@ -81,6 +81,9 @@ else
     fi
 fi
 
+# Make boot files readable (kernel/initrd were sudo-cp'd, root-owned)
+sudo chmod -R a+r "$ROOTFS/boot"
+
 # ── 2. systemd-boot loader config ───────────────────────────────────
 
 cat > "$ROOTFS/boot/loader/loader.conf" << 'LOADER'
@@ -143,6 +146,7 @@ fi
 
 echo "==> Building ISO..."
 ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
+ls -la "$ROOTFS/boot/"
 
 # If vmlinuz exists in rootfs, try creating a proper ISO
 if [ -f "$ROOTFS/boot/vmlinuz" ]; then
@@ -156,7 +160,11 @@ if [ -f "$ROOTFS/boot/vmlinuz" ]; then
                 -no-emul-boot \
                 -boot-load-size 4096 \
                 -boot-info-table \
-            "$ROOTFS" 2>/dev/null || true
+            "$ROOTFS" || {
+            echo "    xorriso failed, trying genisoimage..."
+        }
+    else
+        echo "    xorriso not found, trying genisoimage..."
     fi
 fi
 
@@ -166,14 +174,18 @@ if [ ! -f "$ISO_FILE" ] && [ -f "$ROOTFS/boot/vmlinuz" ]; then
         genisoimage -o "$ISO_FILE" \
             -R -J -V "THISCLOUD" \
             -b boot/vmlinuz \
-            "$ROOTFS" 2>/dev/null || true
+            "$ROOTFS" || {
+            echo "    genisoimage failed, creating rootfs tarball..."
+        }
+    else
+        echo "    genisoimage not found, creating rootfs tarball..."
     fi
 fi
 
 # If still no ISO, create a tarball of the rootfs
 if [ ! -f "$ISO_FILE" ]; then
     ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-rootfs.tar.gz"
-    echo "    ISO tools not available or kernel missing, creating rootfs tarball"
+    echo "    Creating rootfs tarball"
     tar -czf "$ISO_FILE" -C "$ROOTFS" .
 fi
 
