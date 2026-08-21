@@ -6,7 +6,7 @@
 # boot time to replace AlmaLinux branding with THISCLOUD branding.
 #
 # Also generates the boot-loader background assets (isolinux splash.png
-# and grub2 background.png) into iso/branding/boot/ for remix-iso.sh.
+# and grub2 background.png) into os/branding/boot/ for remix-iso.sh.
 #
 # Uses only Python stdlib (struct + zlib) — no PIL/Pillow needed.
 #

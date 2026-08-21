@@ -22,7 +22,7 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 ISO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$ISO_DIR"  # iso/
+cd "$ISO_DIR"  # os/
 
 REPO="repo"
 RPM_DIR="$REPO/thiscloud"
@@ -110,7 +110,7 @@ if command -v go >/dev/null 2>&1; then
     echo "==> building thiscloud-api from ${GO_API_DIR}"
     pushd "$GO_API_DIR" >/dev/null
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-      -o "$(pwd)/../../iso/repo/thiscloud-api" \
+      -o "$(pwd)/../../os/repo/thiscloud-api" \
       ./cmd/api-server
     popd >/dev/null
     echo "==> thiscloud-api built -> $REPO/thiscloud-api"

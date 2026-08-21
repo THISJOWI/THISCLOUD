@@ -6,7 +6,7 @@ Next.js dashboard for THISCLOUD. Two views:
 - **Admin** (`/admin`) — private panel: create and delete VMs, networks and storage pools.
 - **Console** (`/console`) — xterm.js based cluster console.
 
-Talks to the Go orchestrator API (`platform/go-api`, default `http://127.0.0.1:8081`). Set `NEXT_PUBLIC_API_URL` to override.
+Talks to the Go orchestrator API (`api/`, default `http://127.0.0.1:8081`). Set `NEXT_PUBLIC_API_URL` to override.
 
 ## Run
 

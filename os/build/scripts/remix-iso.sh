@@ -25,11 +25,11 @@ cd "$PLATFORM_DIR"
 
 # ── Configuration ───────────────────────────────────────────────────
 INPUT_ISO="${INPUT_ISO:-/data/AlmaLinux-9-latest-x86_64-minimal.iso}"
-OUTPUT_ISO="${OUTPUT_ISO:-/data/thiscloud-iso/ThisCloud-0.1.0-x86_64.iso}"
+OUTPUT_ISO="${OUTPUT_ISO:-/data/thiscloud-os/ThisCloud-0.1.0-x86_64.iso}"
 WORK_DIR="${WORK_DIR:-/tmp/remix-iso-work}"
-KS_FILE="${KS_FILE:-iso/kickstart/thiscloud.ks}"
-REPO_DIR="${REPO_DIR:-iso/repo}"
-PRODUCT_IMG="${PRODUCT_IMG:-iso/product.img}"
+KS_FILE="${KS_FILE:-os/kickstart/thiscloud.ks}"
+REPO_DIR="${REPO_DIR:-os/repo}"
+PRODUCT_IMG="${PRODUCT_IMG:-os/product.img}"
 VOLID="THISCLOUD"
 VERSION="${VERSION:-0.1.0}"
 
@@ -47,9 +47,9 @@ if [ ! -f "$INPUT_ISO" ]; then
 fi
 
 # ── Build product.img + boot assets if not present ──────────────────
-if [ ! -f "$PRODUCT_IMG" ] || [ ! -f "iso/branding/boot/splash.png" ]; then
+if [ ! -f "$PRODUCT_IMG" ] || [ ! -f "os/branding/boot/splash.png" ]; then
   echo "==> [1/11] Building product.img + boot assets"
-  bash iso/scripts/make-product-img.sh
+  bash os/scripts/make-product-img.sh
 else
   echo "==> [1/11] product.img + boot assets already exist, skipping build"
 fi
@@ -147,7 +147,7 @@ if [ -f "$WORK_DIR/EFI/BOOT/grub.cfg" ]; then
   # load_video (or top of file) when the line differs.
   GRUB_CFG="$WORK_DIR/EFI/BOOT/grub.cfg"
   if ! grep -q "color_highlight" "$GRUB_CFG"; then
-    cp -f iso/branding/boot/grub-background.png \
+    cp -f os/branding/boot/grub-background.png \
       "$WORK_DIR/EFI/BOOT/background.png"
     if grep -q "^terminal_output" "$GRUB_CFG"; then
       sed -i "/^terminal_output/a\\
@@ -185,7 +185,7 @@ echo "==> [7/11] Replacing boot splash images"
 if [ -d "$WORK_DIR/isolinux" ]; then
   # The splash image is loaded by isolinux — use the branded 640x480 asset
   if [ -f "$WORK_DIR/isolinux/splash.png" ]; then
-    cp -f "iso/branding/boot/splash.png" \
+    cp -f "os/branding/boot/splash.png" \
       "$WORK_DIR/isolinux/splash.png" 2>/dev/null || true
     echo "    BIOS splash replaced"
   fi

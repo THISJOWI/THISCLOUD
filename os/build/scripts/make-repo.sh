@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the local RPM repository used by the kickstart. Copies cross-compiled
-# RPMs into iso/repo/thiscloud and (re)creates repo metadata. Usable on macOS
+# RPMs into os/repo/thiscloud and (re)creates repo metadata. Usable on macOS
 # for the repo layout, but createrepo_c only runs on Linux — so this must be
 # executed on the AlmaLinux 9 builder when createrepo_c is available.
 set -euo pipefail
@@ -14,7 +14,7 @@ done
 PLATFORM_DIR="$(cd "$(dirname "$SOURCE")/../.." && pwd)"
 cd "$PLATFORM_DIR"
 
-REPO="iso/repo"
+REPO="os/repo"
 RPM_DIR="$REPO/thiscloud"
 mkdir -p "$REPO" "$RPM_DIR"
 

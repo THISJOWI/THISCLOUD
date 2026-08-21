@@ -4,8 +4,8 @@
 *.swo
 
 # Build artifacts
-platform/target/
-platform/iso/repo/
+target/
+os/repo/
 **/*.rs.bk
 
 # Node / Next.js
@@ -21,8 +21,8 @@ skills-lock.json
 # THISCLOUD runtime
 default.etcd/
 AlmaLinux-*.iso
-platform/web-ui/thiscloud.tfstate
-platform/go-api/*.tfstate
+web/thiscloud.tfstate
+api/*.tfstate
 
 # Local AI session state
 .superpowers/

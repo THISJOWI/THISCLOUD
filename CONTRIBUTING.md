@@ -15,7 +15,6 @@ Thanks for your interest in THISCLOUD! Contributions of all kinds are welcome â€
 ### Rust (daemon + CLI)
 
 ```sh
-cd platform
 cargo test --workspace
 cargo clippy --all-targets -- -D warnings
 ```
@@ -23,14 +22,14 @@ cargo clippy --all-targets -- -D warnings
 ### Go API
 
 ```sh
-cd platform/go-api
+cd api
 go test ./...
 ```
 
 ### Web UI
 
 ```sh
-cd platform/web-ui
+cd web
 npm install
 npm test
 npm run lint
@@ -38,7 +37,7 @@ npm run lint
 
 ## ISO Build
 
-See `platform/iso/README.md`. The ISO must be built on AlmaLinux 9 x86_64.
+See `os/README.md`. The ISO must be built on AlmaLinux 9 x86_64.
 
 ## Pull Request Guidelines
 

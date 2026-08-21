@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate module configuration files in platform/iso/calamares/modules/."""
+"""Validate module configuration files in os/calamares/modules/."""
 import os
 import unittest
 

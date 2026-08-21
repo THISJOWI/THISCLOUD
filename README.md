@@ -120,12 +120,12 @@ thiscloud marketplace uninstall <ID>                          # Uninstall an app
 ## Architecture
 
 ```
-platform/
-├── thiscloud-cli/    # CLI tool (thiscloud)
-├── thiscloudd/       # Rust daemon (thiscloudd)
-├── go-api/           # Go orchestrator API
-├── web-ui/           # Next.js dashboard
-└── iso/              # ISO build tooling
+├── cli/              # CLI tool (thiscloud)
+├── services/daemon/  # Rust daemon (thiscloudd)
+├── api/              # Go orchestrator API
+├── web/              # Next.js dashboard
+├── os/               # OS build tooling (kickstart, calamares, systemd)
+└── docs/             # Documentation
 ```
 
 ```
@@ -174,7 +174,6 @@ platform/
 ### Rust (daemon + CLI)
 
 ```sh
-cd platform
 cargo build                              # Build all crates
 cargo build --release                    # Release build
 cargo test                               # Run all tests
@@ -183,14 +182,14 @@ cargo test                               # Run all tests
 ### Go API
 
 ```sh
-cd platform/go-api
+cd api
 go build ./cmd/api-server                # Build API server
 ```
 
 ### Web UI
 
 ```sh
-cd platform/web-ui
+cd web
 npm install
 npm run dev                              # http://localhost:3000
 npm run build                            # Production build
@@ -200,11 +199,11 @@ npm run lint                             # Lint
 
 ### ISO Build
 
-See `platform/iso/README.md` for full details. Must be built on AlmaLinux 9 x86_64.
+See `os/README.md` for full details. Must be built on AlmaLinux 9 x86_64.
 
 ```sh
-cd platform/iso
-scripts/build-iso.sh                     # Full pipeline: cross-compile → RPM → ISO
+cd os
+build/build-iso.sh                     # Full pipeline: cross-compile → RPM → ISO
 ```
 
 ---

@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "thiscloudd",
-    "thiscloud-cli",
+    "services/daemon",
+    "cli",
 ]
 resolver = "2"
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a THISCLOUD AlmaLinux 9 ISO. This must run on an AlmaLinux/RHEL 9
-# x86_64 builder (xorriso/lorax are unavailable on macOS).
+# x86_64 builder (xorros/lorax are unavailable on macOS).
 # See README.md for the dependency matrix.
 #
 #   ALMAISO=/path/to/AlmaLinux.iso ./scripts/build-iso.sh
@@ -14,25 +14,25 @@ fi
 # Also source Rust/Cargo env if present
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
-# Resolve platform/ directory robustly
+# Resolve repo root directory robustly
 SOURCE="${BASH_SOURCE[0]}"
 while [ -L "$SOURCE" ]; do
   DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
   SOURCE="$(readlink "$SOURCE")"
   [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
-PLATFORM_DIR="$(cd "$(dirname "$SOURCE")/../.." && pwd)"
-cd "$PLATFORM_DIR"
+REPO_ROOT="$(cd "$(dirname "$SOURCE")/../.." && pwd)"
+cd "$REPO_ROOT"
 
 ALMAISO="${ALMAISO:-/data/AlmaLinux-9-latest-x86_64-minimal.iso}"
 OUT="${OUT:-/data/thiscloud-iso}"
-REPO="iso/repo"
+REPO="os/repo"
 RPM_DIR="$REPO/thiscloud"
 VERSION="${VERSION:-0.1.0}"
 
 # CI split-build support:
 #   THISCLOUD_SKIP_COMPILE=1  skip steps [1-4] — use artifacts pre-staged in
-#                             iso/repo/ and target/ by another job/runner
+#                             os/repo/ and target/ by another job/runner
 #                             (used by the container-based iso-assemble job).
 #   THISCLOUD_BUILD_ONLY=1    run steps [1-4] then exit — stage prebuilt
 #                             binaries without touching AlmaLinux-only deps
@@ -48,7 +48,7 @@ if [ "${THISCLOUD_BUILD_ONLY:-0}" != "1" ]; then
   for tool in curl cpio createrepo_c xorriso implantisomd5; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       echo "error: missing required tool: $tool"
-      echo "  Install it and re-run, or use: sudo ./iso/scripts/install-deps.sh"
+      echo "  Install it and re-run, or use: sudo ./os/scripts/install-deps.sh"
       exit 1
     fi
   done
@@ -76,7 +76,7 @@ if [ "${THISCLOUD_SKIP_COMPILE:-0}" = "1" ]; then
   echo "==> [1-4/9] skipping compile steps (THISCLOUD_SKIP_COMPILE=1)"
 else
 echo "==> [1/9] Cross-compile Rust binaries"
-bash iso/scripts/cross-compile.sh
+bash os/scripts/cross-compile.sh
 
 echo "==> [2/9] Build RPMs with cargo-generate-rpm"
 cargo install cargo-generate-rpm --locked 2>/dev/null || true
@@ -180,22 +180,22 @@ fi
 
 echo "==> [5/9] Stage systemd service files"
 mkdir -p "$REPO/systemd"
-cp -f iso/systemd/*.service "$REPO/systemd/"
+cp -f os/systemd/*.service "$REPO/systemd/"
 
 # Copy the open-ports script to repo root (kickstart copies it to /usr/local/bin)
-cp -f iso/scripts/open-ports.sh "$REPO/thiscloud-open-ports"
+cp -f os/scripts/open-ports.sh "$REPO/thiscloud-open-ports"
 chmod 755 "$REPO/thiscloud-open-ports"
 
 # Copy the dedicated web-port script
-cp -f iso/scripts/open-web-port.sh "$REPO/thiscloud-open-web-port"
+cp -f os/scripts/open-web-port.sh "$REPO/thiscloud-open-web-port"
 chmod 755 "$REPO/thiscloud-open-web-port"
 
 # Copy the session-secret generator script
-cp -f iso/scripts/session-secret.sh "$REPO/thiscloud-session-secret"
+cp -f os/scripts/session-secret.sh "$REPO/thiscloud-session-secret"
 chmod 755 "$REPO/thiscloud-session-secret"
 
 echo "==> [6/9] Fetch external dependency RPMs"
-bash iso/scripts/fetch-deps.sh
+bash os/scripts/fetch-deps.sh
 
 echo "==> [7/9] Create local RPM repository metadata"
 # createrepo_c must target the sub-directory that contains the RPMs.
@@ -213,7 +213,7 @@ echo "==> [8/9] Build live installer ISO (Calamares)"
 # the Calamares live flow. Calamares+KPMcore are compiled from source and
 # the live ISO is assembled by livemedia-creator.
 ALMAISO="$ALMAISO" OUT="$OUT" VERSION="$VERSION" \
-  bash iso/calamares/scripts/build-live-iso.sh
+  bash os/calamares/scripts/build-live-iso.sh
 
 echo ""
 echo "==> Done"
