@@ -1,0 +1,181 @@
+name: Build ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 0.4.0)"
+        required: false
+        default: "0.4.0"
+      skip_yocto:
+        description: "Skip Yocto build (use existing artifacts)"
+        required: false
+        default: "false"
+        type: boolean
+      skip_el:
+        description: "Skip EL layer build"
+        required: false
+        default: "false"
+        type: boolean
+  push:
+    branches:
+      - feature/native-os
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Rust check (quick validation) ────────────────────────────────────
+
+  rust-check:
+    name: Rust check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-
+
+      - name: Build + Test thpkg
+        run: |
+          cargo build -p thpkg
+          cargo test -p thpkg
+          cargo clippy -p thpkg -- -D warnings
+
+  # ── ShellCheck ──────────────────────────────────────────────────────
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          find os/ -name '*.sh' -exec shellcheck --severity=warning {} +
+
+  # ── Build ISO (AlmaLinux 9) ────────────────────────────────────────
+
+  build-iso:
+    name: Build ISO
+    runs-on: [self-hosted, AlmaLinux-9]
+    needs: [rust-check, shellcheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.version || '0.4.0' }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building THISCLOUD OS v$VERSION"
+
+      - name: Build EL layer
+        if: ${{ github.event.inputs.skip_el != 'true' }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }} \
+          bash os/kernel/build-el-layer.sh \
+            --output build/release/el-layer
+
+      - name: Build Yocto image
+        if: ${{ github.event.inputs.skip_yocto != 'true' }}
+        run: |
+          bash os/kernel/build-image.sh
+
+      - name: Assemble slot
+        run: |
+          # Find Yocto artifacts if they exist
+          DEPLOY_DIR="build/yocto/tmp/deploy/images"
+          MACHINE="qemu-x86-64"
+
+          EL_ARG=""
+          if [ -f build/release/el-layer/el-layer.squashfs ]; then
+            EL_ARG="--el-layer build/release/el-layer/el-layer.squashfs"
+          fi
+
+          if [ -f "$DEPLOY_DIR/$MACHINE/bzImage" ]; then
+            # Full build: use Yocto artifacts
+            bash os/kernel/create-slot.sh \
+              --image "$DEPLOY_DIR/$MACHINE/core-image-"*.ext4 \
+              --kernel "$DEPLOY_DIR/$MACHINE/bzImage" \
+              --initrd "$DEPLOY_DIR/$MACHINE/core-image-"*.cpio.gz \
+              $EL_ARG \
+              --output build/release/slot \
+              --version ${{ steps.version.outputs.version }}
+          else
+            # No Yocto: create a minimal demo slot
+            echo "==> Creating minimal demo slot (no Yocto build available)"
+            mkdir -p build/release/slot
+
+            # Create a placeholder rootfs
+            mkdir -p /tmp/demo-rootfs/{bin,sbin,etc,proc,sys,dev,tmp,run,boot}
+            echo "THISCLOUD OS v${{ steps.version.outputs.version }}" > /tmp/demo-rootfs/etc/hostname
+
+            # Create squashfs
+            mksquashfs /tmp/demo-rootfs build/release/slot/slot.squashfs \
+              -noappend -comp gzip 2>/dev/null || {
+              echo "error: mksquashfs not found — install squashfs-tools"
+              exit 1
+            }
+
+            # Create manifest
+            IMAGE_SHA=$(sha256sum build/release/slot/slot.squashfs | awk '{print $1}')
+            cat > build/release/slot/manifest.json << EOF
+            {
+              "version": "${{ steps.version.outputs.version }}",
+              "image_url": "slot.squashfs",
+              "image_sha256": "$IMAGE_SHA",
+              "kernel_url": "",
+              "kernel_sha256": "",
+              "initrd_url": "",
+              "initrd_sha256": "",
+              "signature": "",
+              "el_layer_version": "",
+              "sysexts": []
+            }
+            EOF
+
+            echo "    Demo slot created"
+            ls -lh build/release/slot/
+          fi
+
+      - name: Build installer ISO
+        run: |
+          bash os/kernel/build-installer.sh \
+            --slot build/release/slot/slot.squashfs \
+            --output build/release \
+            --version ${{ steps.version.outputs.version }}
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "============================================"
+          echo "  Build complete — artifacts:"
+          echo "============================================"
+          ls -lh build/release/
+          echo ""
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: ThisCloud-${{ steps.version.outputs.version }}-${{ github.sha }}
+          path: |
+            build/release/*.iso
+            build/release/slot/manifest.json
+            build/release/slot/*.squashfs
+          retention-days: 7
