@@ -2,6 +2,7 @@
 members = [
     "services/daemon",
     "cli",
+    "os/packages/thpkg",
 ]
 resolver = "2"
 

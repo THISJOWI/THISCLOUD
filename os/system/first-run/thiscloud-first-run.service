@@ -1,0 +1,16 @@
+[Unit]
+Description=THISCLOUD First Run — configure node
+After=network-online.target systemd-resolved.service
+Wants=network-online.target
+Before=thpkg-booted-ok.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/installer/first-run.sh --non-interactive
+ExecStartPost=/bin/touch /var/lib/thpkg/first-run-done
+StandardOutput=journal+console
+StandardError=journal+console
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

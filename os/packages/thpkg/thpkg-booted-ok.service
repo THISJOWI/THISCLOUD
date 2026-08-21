@@ -1,0 +1,12 @@
+[Unit]
+Description=THISCLOUD Healthcheck — marks slot as booted
+After=network.target thiscloudd.service thiscloud-api.service thiscloud-webui.service
+Wants=thiscloudd.service thiscloud-api.service thiscloud-webui.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/thpkg booted-ok
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

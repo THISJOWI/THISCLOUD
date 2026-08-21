@@ -1,0 +1,15 @@
+# thiscloud.wks — WIC kickstart for THISCLOUD A/B disk layout
+# Creates: ESP + Slot A + Slot B + Data partition
+#
+# Layout:
+#   p1: ESP       (vfat, 512MiB)   — systemd-boot + kernels + initrds
+#   p2: Slot A    (squashfs, ~4GiB) — rootfs A (ro)
+#   p3: Slot B    (squashfs, ~4GiB) — rootfs B (ro)
+#   p4: Data      (ext4, remainder) — /var (rw, shared by both slots)
+
+part /boot/efi --source bootimg --sourceparams="loader=systemd-boot" --fstype=vfat --label ESP --size 512M --active
+part / --source rootfs --fstype squashfs --label slot-a --size 4096M
+part / --source rootfs --fstype squashfs --label slot-b --size 4096M
+part /var --fstype ext4 --label data --size 1 --grow
+
+bootloader --timeout=5 --append="console=ttyS0,115200 root=/dev/sda2 ro"
