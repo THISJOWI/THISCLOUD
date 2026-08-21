@@ -30,10 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install protoc
+      - name: Install protoc + etcd
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
+          sudo apt-get install -y protobuf-compiler etcd-server
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -72,7 +72,7 @@ jobs:
 
       - name: Lint shell scripts
         run: |
-          find os/ -name '*.sh' -exec shellcheck --severity=warning {} +
+          find os/kernel/ os/system/ -name '*.sh' -exec shellcheck --severity=warning {} +
 
   # ── EL layer build (AlmaLinux 9 only) ───────────────────────────────
 
