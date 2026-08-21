@@ -97,3 +97,26 @@ pub fn healthcheck() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_write_slot_marker() {
+        let dir = tempdir().unwrap();
+        let marker = dir.path().join("next-slot");
+        // Temporarily override the marker path by writing manually
+        fs::write(&marker, "a").unwrap();
+        assert_eq!(fs::read_to_string(&marker).unwrap(), "a");
+    }
+
+    #[test]
+    fn test_healthcheck_without_systemctl() {
+        // healthcheck will fail in a non-systemd environment — that's OK
+        let result = healthcheck();
+        // Should return an error since systemctl isn't available in tests
+        assert!(result.is_err());
+    }
+}

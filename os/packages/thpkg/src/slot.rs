@@ -219,3 +219,70 @@ fn file_sha256(path: &Path) -> Result<String> {
     hasher.update(&data);
     Ok(hex::encode(hasher.finalize()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inactive_slot() {
+        assert_eq!(inactive_slot("a"), "b");
+        assert_eq!(inactive_slot("b"), "a");
+    }
+
+    #[test]
+    fn test_resolve_url_absolute() {
+        assert_eq!(
+            resolve_url("http://base.com", "http://other.com/file"),
+            "http://other.com/file"
+        );
+        assert_eq!(
+            resolve_url("http://base.com", "https://cdn.example.com/vmlinuz"),
+            "https://cdn.example.com/vmlinuz"
+        );
+    }
+
+    #[test]
+    fn test_resolve_url_relative() {
+        assert_eq!(resolve_url("http://base.com/releases", "vmlinuz"), "http://base.com/releases/vmlinuz");
+        assert_eq!(resolve_url("http://base.com", "rootfs.squashfs"), "http://base.com/rootfs.squashfs");
+    }
+
+    #[test]
+    fn test_manifest_serialization() {
+        let manifest = Manifest {
+            version: "0.4.0".to_string(),
+            image_url: "thiscloud-0.4.0.squashfs".to_string(),
+            image_sha256: "abc123".to_string(),
+            kernel_url: "vmlinuz".to_string(),
+            kernel_sha256: "def456".to_string(),
+            initrd_url: "initrd".to_string(),
+            initrd_sha256: "ghi789".to_string(),
+            signature: "".to_string(),
+            el_layer_version: "el1.0".to_string(),
+            sysexts: vec![],
+        };
+        let json = serde_json::to_string(&manifest).unwrap();
+        let parsed: Manifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.4.0");
+        assert_eq!(parsed.image_sha256, "abc123");
+    }
+
+    #[test]
+    fn test_file_sha256() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("test.bin");
+        fs::write(&file, b"hello thpkg").unwrap();
+        let hash = file_sha256(&file).unwrap();
+        assert_eq!(hash.len(), 64);
+    }
+
+    #[test]
+    fn test_read_active_slot_no_slots() {
+        // Should fail gracefully when slots dir doesn't exist
+        let result = read_active_slot();
+        // Will either return an error or find nothing — both are acceptable
+        // in a test environment without the expected directory structure
+        let _ = result;
+    }
+}

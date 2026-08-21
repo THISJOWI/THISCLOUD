@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Rust workspace (daemon, cli, thpkg) ──────────────────────────────
+
+  rust:
+    name: Rust (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [thiscloudd, thiscloud, thpkg]
+        include:
+          - package: thiscloudd
+            test_cmd: cargo test -p thiscloudd
+          - package: thiscloud
+            test_cmd: cargo test -p thiscloud
+          - package: thpkg
+            test_cmd: cargo test -p thpkg
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-
+
+      - name: Build
+        run: cargo build -p ${{ matrix.package }}
+
+      - name: Test
+        run: ${{ matrix.test_cmd }}
+
+      - name: Clippy
+        run: cargo clippy -p ${{ matrix.package }} -- -D warnings
+
+  # ── Shell scripts (lint only — no build) ─────────────────────────────
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          find os/ -name '*.sh' -exec shellcheck --severity=warning {} +
+
+  # ── EL layer build (AlmaLinux 9 only) ───────────────────────────────
+
+  el-layer:
+    name: EL Layer (AlmaLinux 9)
+    runs-on: [self-hosted, AlmaLinux-9]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build EL layer
+        run: |
+          VERSION=0.4.0 bash os/kernel/build-el-layer.sh \
+            --output build/release/el-layer
+
+      - name: Verify artifacts
+        run: |
+          ls -lh build/release/el-layer/
+          file build/release/el-layer/*.squashfs
+
+  # ── Full pipeline (AlmaLinux 9, main only) ──────────────────────────
+
+  pipeline:
+    name: Full Pipeline
+    runs-on: [self-hosted, AlmaLinux-9]
+    needs: [rust, el-layer]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build complete image
+        run: |
+          VERSION=0.4.0 bash os/kernel/build-pipeline.sh --skip-yocto --skip-el
+
+      - name: Build installer ISO
+        run: |
+          # Build installer from the assembled slot
+          ls -lh build/release/slot/
+          bash os/kernel/build-installer.sh \
+            --slot build/release/slot/slot.squashfs \
+            --output build/release \
+            --version 0.4.0
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thiscloud-os-${{ github.sha }}
+          path: |
+            build/release/*.iso
+            build/release/manifest.json
+          retention-days: 30
