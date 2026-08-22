@@ -143,7 +143,7 @@ sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
 cp "$INITRD_FILE" "$MEDIA/boot/initrd"
 
 echo "==> Creating rootfs squashfs..."
-mksquashfs "$ROOTFS_SOURCE" "$MEDIA/install/rootfs.squashfs" -comp xz -b 1M -no-xattrs >/dev/null 2>&1
+sudo mksquashfs "$ROOTFS_SOURCE" "$MEDIA/install/rootfs.squashfs" -comp xz -b 1M -no-xattrs -noappend
 echo "    squashfs: $(stat -c%s "$MEDIA/install/rootfs.squashfs" 2>/dev/null || echo 'missing') bytes"
 
 cp "$SCRIPT_DIR/installer.sh" "$MEDIA/install/installer.sh"
