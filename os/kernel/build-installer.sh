@@ -29,7 +29,7 @@ if [ -z "$OUTPUT" ] || [ -z "$ROOTFS_SOURCE" ]; then
     exit 1
 fi
 
-cleanup() { rm -rf "$WORK_DIR"; }
+cleanup() { sudo rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
 echo "==> Building THISCLOUD installer ISO v${VERSION}"
@@ -57,16 +57,16 @@ echo "    Initrd: $INITRD_FILE"
 # ── 2. Prepare ISO media ────────────────────────────────────────────
 
 MEDIA="$WORK_DIR/media"
-mkdir -p "$MEDIA"/{boot,install,rootfs}
+mkdir -p "$MEDIA"/{boot,install}
 
 # Copy kernel and initrd
 sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
 sudo cp "$INITRD_FILE" "$MEDIA/boot/initrd"
 sudo chmod -R a+r "$MEDIA/boot"
 
-# Copy full rootfs into ISO
-echo "==> Copying rootfs to ISO media..."
-sudo rsync -a "$ROOTFS_SOURCE/" "$MEDIA/rootfs/"
+# Create rootfs squashfs for ISO
+echo "==> Creating rootfs squashfs for ISO..."
+mksquashfs "$ROOTFS_SOURCE" "$MEDIA/install/rootfs.squashfs" -comp xz -b 1M -no-xattrs 2>&1 | tail -3
 
 # Copy installer
 cp "$SCRIPT_DIR/installer.sh" "$MEDIA/install/installer.sh"
@@ -113,12 +113,14 @@ for dev in /dev/sr0 /dev/sr1 /dev/cdrom; do
     fi
 done
 
-# Use rootfs from ISO
-if [ -d /media/cdrom/rootfs ]; then
-    echo "==> Found rootfs on ISO"
-    ROOTFS="/media/cdrom/rootfs"
+# Mount rootfs squashfs
+if [ -f /media/cdrom/install/rootfs.squashfs ]; then
+    echo "==> Mounting rootfs squashfs..."
+    mkdir -p /mnt/rootfs
+    mount -t squashfs -o ro,loop /media/cdrom/install/rootfs.squashfs /mnt/rootfs
+    ROOTFS="/mnt/rootfs"
 else
-    echo "==> No rootfs found, using live system"
+    echo "==> No rootfs squashfs found, using live system"
     ROOTFS="/"
 fi
 
