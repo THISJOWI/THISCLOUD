@@ -63,6 +63,7 @@ mkdir -p "$MEDIA"/{boot,install}
 sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
 sudo cp "$INITRD_FILE" "$MEDIA/boot/initrd"
 sudo chmod -R a+r "$MEDIA/boot"
+sudo chown -R runner:runner "$MEDIA" 2>/dev/null || sudo chmod -R a+rw "$MEDIA" 2>/dev/null || true
 
 # Create rootfs squashfs for ISO
 echo "==> Creating rootfs squashfs for ISO..."
