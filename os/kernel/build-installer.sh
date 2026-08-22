@@ -35,6 +35,7 @@ if [ -z "$KERNEL_FILE" ] || [ ! -f "$KERNEL_FILE" ]; then
     echo "error: no kernel found in $ROOTFS_SOURCE/boot/"
     exit 1
 fi
+KERNEL_FILE=$(cd "$(dirname "$KERNEL_FILE")" && pwd)/$(basename "$KERNEL_FILE")
 echo "    Kernel: $KERNEL_FILE"
 
 # 2. Create custom initrd with busybox
@@ -127,7 +128,7 @@ sudo cp "$WORK_DIR/init" "$INITRD_DIR/init"
 sudo chmod +x "$INITRD_DIR/init"
 
 # 4. Build initrd
-INITRD_FILE="$WORK_DIR/initrd.cpio.gz"
+INITRD_FILE=$(cd "$(dirname "$WORK_DIR/initrd.cpio.gz")" && pwd)/$(basename "$WORK_DIR/initrd.cpio.gz")
 cd "$INITRD_DIR"
 find . | sudo cpio -o -H newc 2>/dev/null | gzip > "$INITRD_FILE"
 cd "$SCRIPT_DIR"
