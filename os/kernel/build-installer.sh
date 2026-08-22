@@ -133,7 +133,8 @@ find . | cpio -o -H newc 2>/dev/null | gzip > "$INITRD_CPIO"
 # ── 5. Build ISO with genisoimage ───────────────────────────────────
 
 echo "==> Building ISO..."
-ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
+mkdir -p "$OUTPUT"
+ISO_FILE="$(cd "$OUTPUT" && pwd)/ThisCloud-${VERSION}-installer-x86_64.iso"
 
 if command -v genisoimage >/dev/null 2>&1; then
     genisoimage -o "$ISO_FILE" \
