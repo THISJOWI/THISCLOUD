@@ -23,6 +23,10 @@ if [ -z "$OUTPUT" ] || [ -z "$ROOTFS_SOURCE" ]; then
     exit 1
 fi
 
+# Resolve to absolute paths before any cd
+ROOTFS_SOURCE=$(cd "$ROOTFS_SOURCE" && pwd)
+OUTPUT=$(cd "$OUTPUT" && pwd)
+
 cleanup() { sudo rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
