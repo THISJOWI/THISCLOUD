@@ -66,7 +66,8 @@ sudo chmod -R a+r "$MEDIA/boot"
 
 # Create rootfs squashfs for ISO
 echo "==> Creating rootfs squashfs for ISO..."
-mksquashfs "$ROOTFS_SOURCE" "$MEDIA/install/rootfs.squashfs" -comp xz -b 1M -no-xattrs 2>&1 | tail -3
+sudo mksquashfs "$ROOTFS_SOURCE" "$MEDIA/install/rootfs.squashfs" -comp xz -b 1M -no-xattrs || true
+echo "    Squashfs: $(stat -c%s "$MEDIA/install/rootfs.squashfs" 2>/dev/null || echo 'missing') bytes"
 
 # Copy installer
 cp "$SCRIPT_DIR/installer.sh" "$MEDIA/install/installer.sh"
@@ -151,6 +152,9 @@ popd > /dev/null
 echo "==> Building ISO..."
 mkdir -p "$OUTPUT"
 ISO_FILE="$(cd "$OUTPUT" && pwd)/ThisCloud-${VERSION}-installer-x86_64.iso"
+
+echo "    Media contents:"
+find "$MEDIA" -type f -exec ls -lh {} \;
 
 if command -v genisoimage >/dev/null 2>&1; then
     genisoimage -o "$ISO_FILE" \
