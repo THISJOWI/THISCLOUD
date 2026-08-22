@@ -73,7 +73,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y squashfs-tools xorriso debootstrap \
             build-essential flex bison bc libssl-dev libelf-dev \
-            cpio kmod libncurses-dev
+            cpio kmod libncurses-dev syslinux syslinux-common syslinux-efi
 
       - name: Determine version
         id: version

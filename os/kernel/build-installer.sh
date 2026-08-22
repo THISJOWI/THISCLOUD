@@ -156,7 +156,37 @@ menuentry "THISCLOUD OS (Safe Mode)" {
 
 GRUB
 
-# ── 5. Build ISO ─────────────────────────────────────────────────────
+# ── 5. Copy ISOLINUX binaries ─────────────────────────────────────────
+
+echo "==> Installing ISOLINUX..."
+
+# Find and copy isolinux.bin
+ISOLINUX_BIN=""
+for path in /usr/lib/ISOLINUX/isolinux.bin /usr/share/syslinux/isolinux.bin /usr/lib/syslinux/bios/isolinux.bin; do
+    if [ -f "$path" ]; then
+        ISOLINUX_BIN="$path"
+        break
+    fi
+done
+
+if [ -n "$ISOLINUX_BIN" ]; then
+    cp "$ISOLINUX_BIN" "$MEDIA/boot/isolinux/"
+    echo "    Found isolinux.bin: $ISOLINUX_BIN"
+else
+    echo "    error: isolinux.bin not found"
+    echo "    Install syslinux-common package"
+    exit 1
+fi
+
+# Copy required C32 modules
+for module in ldlinux.c32 libutil.c32 libcom32.c32 menu.c32 vesamenu.c32; do
+    src=$(find /usr -name "$module" 2>/dev/null | head -1)
+    if [ -n "$src" ]; then
+        cp "$src" "$MEDIA/boot/isolinux/"
+    fi
+done
+
+# ── 6. Build ISO ─────────────────────────────────────────────────────
 
 echo "==> Building ISO..."
 ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
