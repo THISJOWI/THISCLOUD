@@ -24,6 +24,7 @@ if [ -z "$OUTPUT" ] || [ -z "$ROOTFS_SOURCE" ]; then
 fi
 
 # Resolve to absolute paths before any cd
+mkdir -p "$OUTPUT"
 ROOTFS_SOURCE=$(cd "$ROOTFS_SOURCE" && pwd)
 OUTPUT=$(cd "$OUTPUT" && pwd)
 
