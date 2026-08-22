@@ -57,12 +57,16 @@ echo "    Initrd: $INITRD_FILE"
 # ── 2. Prepare ISO media ────────────────────────────────────────────
 
 MEDIA="$WORK_DIR/media"
-mkdir -p "$MEDIA"/{boot,install}
+mkdir -p "$MEDIA"/{boot,install,rootfs}
 
 # Copy kernel and initrd
 sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
 sudo cp "$INITRD_FILE" "$MEDIA/boot/initrd"
 sudo chmod -R a+r "$MEDIA/boot"
+
+# Copy full rootfs into ISO
+echo "==> Copying rootfs to ISO media..."
+sudo rsync -a "$ROOTFS_SOURCE/" "$MEDIA/rootfs/"
 
 # Copy installer
 cp "$SCRIPT_DIR/installer.sh" "$MEDIA/install/installer.sh"
@@ -108,6 +112,15 @@ for dev in /dev/sr0 /dev/sr1 /dev/cdrom; do
         }
     fi
 done
+
+# Use rootfs from ISO
+if [ -d /media/cdrom/rootfs ]; then
+    echo "==> Found rootfs on ISO"
+    ROOTFS="/media/cdrom/rootfs"
+else
+    echo "==> No rootfs found, using live system"
+    ROOTFS="/"
+fi
 
 # Run installer
 if [ -x /media/cdrom/install/installer.sh ]; then
