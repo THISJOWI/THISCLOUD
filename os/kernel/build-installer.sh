@@ -127,8 +127,9 @@ chmod +x "$MEDIA/boot/init"
 echo "==> Creating initrd..."
 INITRD_CPIO="$WORK_DIR/initrd.cpio.gz"
 
-cd "$MEDIA"
+pushd "$MEDIA" > /dev/null
 find . | cpio -o -H newc 2>/dev/null | gzip > "$INITRD_CPIO"
+popd > /dev/null
 
 # ── 5. Build ISO with genisoimage ───────────────────────────────────
 
