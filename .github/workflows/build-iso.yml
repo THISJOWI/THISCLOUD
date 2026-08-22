@@ -71,9 +71,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools xorriso debootstrap \
-            build-essential flex bison bc libssl-dev libelf-dev \
-            cpio kmod libncurses-dev syslinux syslinux-common syslinux-efi
+          sudo apt-get install -y squashfs-tools xorriso debootstrap genisoimage \
+            build-essential flex bison bc libssl-dev libelf-dev cpio kmod
 
       - name: Determine version
         id: version
@@ -85,75 +84,20 @@ jobs:
       - name: Build thpkg binary
         run: cargo build -p thpkg --release
 
-      - name: Build vanilla Linux kernel
-        run: |
-          bash os/kernel/build-kernel.sh \
-            --version 6.15.6 \
-            --output build/kernel \
-            --jobs $(nproc)
-          echo "Kernel built:"
-          ls -lh build/kernel/boot/
-
       - name: Create complete rootfs
         run: |
           VERSION=${{ steps.version.outputs.version }}
           bash os/kernel/build-rootfs.sh \
             --output build/rootfs \
-            --version "$VERSION" \
-            --kernel-version $(ls build/kernel/boot/vmlinuz-* | head -1 | xargs basename | sed 's/^vmlinuz-//') \
-            --kernel-dir build/kernel
-
-      - name: Create squashfs slot
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          mkdir -p build/release/slot
-
-          # Copy kernel and initrd from rootfs to slot
-          cp build/rootfs/boot/vmlinuz-* build/release/slot/vmlinuz 2>/dev/null || true
-          cp build/rootfs/boot/initrd.img-* build/release/slot/initrd 2>/dev/null || true
-
-          # Create squashfs of the rootfs (excluding /boot to keep slot small)
-          mksquashfs build/rootfs build/release/slot/slot.squashfs \
-            -noappend -comp gzip -b 1M \
-            -e boot
-
-          # Create manifest
-          IMAGE_SHA=$(sha256sum build/release/slot/slot.squashfs | awk '{print $1}')
-          KERNEL_SHA=$(sha256sum build/release/slot/vmlinuz 2>/dev/null | awk '{print $1}' || echo "")
-          INITRD_SHA=$(sha256sum build/release/slot/initrd 2>/dev/null | awk '{print $1}' || echo "")
-          cat > build/release/slot/manifest.json << EOF
-          {
-            "version": "$VERSION",
-            "image_url": "slot.squashfs",
-            "image_sha256": "$IMAGE_SHA",
-            "kernel_url": "vmlinuz",
-            "kernel_sha256": "$KERNEL_SHA",
-            "initrd_url": "initrd",
-            "initrd_sha256": "$INITRD_SHA",
-            "signature": "",
-            "el_layer_version": "",
-            "sysexts": []
-          }
-          EOF
-
-          echo "==> Slot created"
-          ls -lh build/release/slot/
+            --version "$VERSION"
 
       - name: Build installer ISO
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          # Use kernel from our build
-          OUR_KERNEL=$(ls build/kernel/boot/vmlinuz-* 2>/dev/null | head -1)
-          OUR_INITRD=$(ls build/rootfs/boot/initrd.img-* 2>/dev/null | head -1)
-          echo "Using kernel: ${OUR_KERNEL:-none}"
-          echo "Using initrd: ${OUR_INITRD:-none}"
-          echo "Using rootfs: build/rootfs"
           bash os/kernel/build-installer.sh \
             --output build/release \
             --version "$VERSION" \
-            --rootfs build/rootfs \
-            ${OUR_KERNEL:+--kernel "$OUR_KERNEL"} \
-            ${OUR_INITRD:+--initrd "$OUR_INITRD"}
+            --rootfs build/rootfs
 
       - name: Summary
         run: |
@@ -170,8 +114,7 @@ jobs:
           name: ThisCloud-${{ steps.version.outputs.version }}-${{ github.sha }}
           path: |
             build/release/ThisCloud-*
-            build/release/slot/manifest.json
-            build/release/slot/*.squashfs
+            build/release/*.squashfs
           retention-days: 7
 
       - name: Upload ISO to Cloudflare R2

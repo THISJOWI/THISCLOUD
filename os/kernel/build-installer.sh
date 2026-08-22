@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Build THISCLOUD installer ISO with vanilla kernel.
-# Creates a minimal bootable ISO that runs the installer directly.
+# Build THISCLOUD installer ISO - simplified version.
+# Uses system kernel for fast CI builds.
 #
 # Usage:
 #   ./build-installer.sh \
-#     --kernel /path/to/vmlinuz \
-#     --initrd /path/to/initrd.img \
 #     --rootfs /path/to/complete-rootfs \
 #     --output /path/to/output \
 #     --version 0.4.0
@@ -15,14 +13,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VERSION="${VERSION:-0.1.0}"
 OUTPUT=""
 ROOTFS_SOURCE=""
-KERNEL=""
-INITRD=""
 WORK_DIR=$(mktemp -d /tmp/thcloud-iso-XXXXXX)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --kernel) KERNEL="$2"; shift 2 ;;
-        --initrd) INITRD="$2"; shift 2 ;;
         --rootfs) ROOTFS_SOURCE="$2"; shift 2 ;;
         --output) OUTPUT="$2"; shift 2 ;;
         --version) VERSION="$2"; shift 2 ;;
@@ -30,8 +24,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ -z "$OUTPUT" ]; then
-    echo "error: --output is required"
+if [ -z "$OUTPUT" ] || [ -z "$ROOTFS_SOURCE" ]; then
+    echo "error: --output and --rootfs are required"
     exit 1
 fi
 
@@ -42,178 +36,109 @@ echo "==> Building THISCLOUD installer ISO v${VERSION}"
 
 mkdir -p "$OUTPUT"
 
-# ── 1. Prepare media root ────────────────────────────────────────────
+# ── 1. Find kernel and initrd from rootfs ────────────────────────────
 
-MEDIA="$WORK_DIR/media"
-mkdir -p "$MEDIA"/{boot/isolinux,boot/grub,install}
-
-# ── 2. Copy kernel and initrd ─────────────────────────────────────────
-
-echo "==> Installing kernel and initrd..."
-
-# Find kernel
-KERNEL_FILE=""
-if [ -n "$KERNEL" ] && [ -f "$KERNEL" ]; then
-    KERNEL_FILE="$KERNEL"
-elif [ -n "$ROOTFS_SOURCE" ]; then
-    KERNEL_FILE=$(ls "$ROOTFS_SOURCE"/boot/vmlinuz-* 2>/dev/null | head -1 || true)
-fi
+KERNEL_FILE=$(ls "$ROOTFS_SOURCE"/boot/vmlinuz-* 2>/dev/null | head -1 || true)
+INITRD_FILE=$(ls "$ROOTFS_SOURCE"/boot/initrd.img-* 2>/dev/null | head -1 || true)
 
 if [ -z "$KERNEL_FILE" ] || [ ! -f "$KERNEL_FILE" ]; then
-    echo "error: no kernel found"
+    echo "error: no kernel found in $ROOTFS_SOURCE/boot/"
     exit 1
-fi
-
-sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
-echo "    Kernel: $KERNEL_FILE"
-
-# Find initrd
-INITRD_FILE=""
-if [ -n "$INITRD" ] && [ -f "$INITRD" ]; then
-    INITRD_FILE="$INITRD"
-elif [ -n "$ROOTFS_SOURCE" ]; then
-    INITRD_FILE=$(ls "$ROOTFS_SOURCE"/boot/initrd.img-* 2>/dev/null | head -1 || true)
 fi
 
 if [ -z "$INITRD_FILE" ] || [ ! -f "$INITRD_FILE" ]; then
-    echo "error: no initrd found"
+    echo "error: no initrd found in $ROOTFS_SOURCE/boot/"
     exit 1
 fi
 
-sudo cp "$INITRD_FILE" "$MEDIA/boot/initrd"
+echo "    Kernel: $KERNEL_FILE"
 echo "    Initrd: $INITRD_FILE"
 
+# ── 2. Prepare ISO media ────────────────────────────────────────────
+
+MEDIA="$WORK_DIR/media"
+mkdir -p "$MEDIA"/{boot,install}
+
+# Copy kernel and initrd
+sudo cp "$KERNEL_FILE" "$MEDIA/boot/vmlinuz"
+sudo cp "$INITRD_FILE" "$MEDIA/boot/initrd"
 sudo chmod -R a+r "$MEDIA/boot"
 
-# ── 3. Copy installer script ─────────────────────────────────────────
+# Copy installer
+cp "$SCRIPT_DIR/installer.sh" "$MEDIA/install/installer.sh"
+chmod +x "$MEDIA/install/installer.sh"
 
-echo "==> Installing installer..."
-
-# Use the installer script from the OS directory
-INSTALLER_SRC="${SCRIPT_DIR}/installer.sh"
-if [ -f "$INSTALLER_SRC" ]; then
-    echo "    Source: $INSTALLER_SRC"
-    cp "$INSTALLER_SRC" "$MEDIA/install/installer.sh"
-    chmod +x "$MEDIA/install/installer.sh"
-    echo "    Installed installer.sh"
-else
-    echo "    error: installer.sh not found at $INSTALLER_SRC"
-    echo "    SCRIPT_DIR=$SCRIPT_DIR"
-    ls -la "$SCRIPT_DIR/" | head -20
-    exit 1
+# Copy slot if available
+SLOT_FILE=$(ls "$ROOTFS_SOURCE"/usr/share/installer/*.squashfs 2>/dev/null | head -1 || true)
+if [ -n "$SLOT_FILE" ] && [ -f "$SLOT_FILE" ]; then
+    cp "$SLOT_FILE" "$MEDIA/install/slot.squashfs"
+    echo "    Slot: $SLOT_FILE"
 fi
 
-# Copy slot squashfs if available
-if [ -n "$ROOTFS_SOURCE" ]; then
-    SLOT_FILE=$(ls "$ROOTFS_SOURCE"/usr/share/installer/*.squashfs 2>/dev/null | head -1 || true)
-    if [ -n "$SLOT_FILE" ] && [ -f "$SLOT_FILE" ]; then
-        cp "$SLOT_FILE" "$MEDIA/install/slot.squashfs"
-        echo "    Slot: $SLOT_FILE"
-    else
-        echo "    No slot squashfs found (will install from ISO)"
-    fi
-fi
+# ── 3. Create init script for boot ──────────────────────────────────
 
-# ── 4. Create boot configuration ─────────────────────────────────────
+cat > "$MEDIA/boot/init" << 'INIT'
+#!/bin/sh
+# THISCLOUD Installer Init
 
-echo "==> Creating boot configuration..."
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
-# ISOLINUX for BIOS boot
-cat > "$MEDIA/boot/isolinux/isolinux.cfg" << 'ISOLINUX'
-DEFAULT thiscloud
-TIMEOUT 50
-MENU TITLE THISCLOUD OS Installer
+echo "==> THISCLOUD OS Installer"
+echo "    Kernel: $(uname -r)"
 
-LABEL thiscloud
-  MENU LABEL THISCLOUD OS Installer
-  LINUX /boot/vmlinuz
-  INITRD /boot/initrd
-  APPEND console=tty0
+# Mount essential filesystems
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /run
 
-LABEL thiscloud-safe
-  MENU LABEL THISCLOUD OS (Safe Mode)
-  LINUX /boot/vmlinuz
-  INITRD /boot/initrd
-  APPEND console=tty0 nomodeset
+# Load modules
+for mod in ext4 virtio_pci virtio_blk virtio_net ata_piix ahci; do
+    modprobe $mod 2>/dev/null || true
+done
 
-ISOLINUX
-
-# GRUB config for UEFI boot
-mkdir -p "$MEDIA/boot/grub"
-cat > "$MEDIA/boot/grub/grub.cfg" << 'GRUB'
-set default=0
-set timeout=5
-
-menuentry "THISCLOUD OS Installer" {
-  linux /boot/vmlinuz console=tty0
-  initrd /boot/initrd
-}
-
-menuentry "THISCLOUD OS (Safe Mode)" {
-  linux /boot/vmlinuz console=tty0 nomodeset
-  initrd /boot/initrd
-}
-
-GRUB
-
-# ── 5. Copy ISOLINUX binaries ─────────────────────────────────────────
-
-echo "==> Installing ISOLINUX..."
-
-# Find and copy isolinux.bin
-ISOLINUX_BIN=""
-for path in /usr/lib/ISOLINUX/isolinux.bin /usr/share/syslinux/isolinux.bin /usr/lib/syslinux/bios/isolinux.bin; do
-    if [ -f "$path" ]; then
-        ISOLINUX_BIN="$path"
-        break
+# Find CD-ROM
+echo "==> Looking for installation media..."
+for dev in /dev/sr0 /dev/sr1 /dev/cdrom; do
+    if [ -b "$dev" ]; then
+        mkdir -p /media/cdrom
+        mount -t iso9660 "$dev" /media/cdrom 2>/dev/null && {
+            echo "    Mounted: $dev"
+            break
+        }
     fi
 done
 
-if [ -n "$ISOLINUX_BIN" ]; then
-    cp "$ISOLINUX_BIN" "$MEDIA/boot/isolinux/"
-    echo "    Found isolinux.bin: $ISOLINUX_BIN"
+# Run installer
+if [ -x /media/cdrom/install/installer.sh ]; then
+    echo "==> Starting installer..."
+    exec /media/cdrom/install/installer.sh
 else
-    echo "    error: isolinux.bin not found"
-    echo "    Install syslinux-common package"
-    exit 1
+    echo "==> No installer found, dropping to shell"
+    exec /bin/sh
 fi
 
-# Copy required C32 modules
-for module in ldlinux.c32 libutil.c32 libcom32.c32 menu.c32 vesamenu.c32; do
-    src=$(find /usr -name "$module" 2>/dev/null | head -1)
-    if [ -n "$src" ]; then
-        cp "$src" "$MEDIA/boot/isolinux/"
-    fi
-done
+INIT
 
-# ── 6. Build ISO ─────────────────────────────────────────────────────
+chmod +x "$MEDIA/boot/init"
+
+# ── 4. Create cpio initrd ───────────────────────────────────────────
+
+echo "==> Creating initrd..."
+INITRD_CPIO="$WORK_DIR/initrd.cpio.gz"
+
+cd "$MEDIA"
+find . | cpio -o -H newc 2>/dev/null | gzip > "$INITRD_CPIO"
+
+# ── 5. Build ISO with genisoimage ───────────────────────────────────
 
 echo "==> Building ISO..."
 ISO_FILE="$OUTPUT/ThisCloud-${VERSION}-installer-x86_64.iso"
 
-# Build ISO with xorriso
-if command -v xorriso >/dev/null 2>&1; then
-    xorriso -as mkisofs \
-        -iso-level 3 \
-        -full-iso9660-filenames \
-        -volid "THISCLOUD" \
-        -output "$ISO_FILE" \
-        -eltorito-boot boot/isolinux/isolinux.bin \
-            -no-emul-boot \
-            -boot-load-size 4 \
-            -boot-info-table \
-        "$MEDIA" 2>&1 && {
-        echo "    ISO created with xorriso"
-    } || {
-        echo "    xorriso failed"
-    }
-fi
-
-# Fallback: genisoimage
-if [ ! -f "$ISO_FILE" ] && command -v genisoimage >/dev/null 2>&1; then
+if command -v genisoimage >/dev/null 2>&1; then
     genisoimage -o "$ISO_FILE" \
         -R -J -V "THISCLOUD" \
-        -b boot/isolinux/isolinux.bin \
+        -b boot/vmlinuz \
         -c boot/boot.cat \
         -no-emul-boot \
         -boot-load-size 4 \
@@ -222,6 +147,24 @@ if [ ! -f "$ISO_FILE" ] && command -v genisoimage >/dev/null 2>&1; then
         echo "    ISO created with genisoimage"
     } || {
         echo "    genisoimage failed"
+    }
+fi
+
+# Fallback: xorriso
+if [ ! -f "$ISO_FILE" ] && command -v xorriso >/dev/null 2>&1; then
+    xorriso -as mkisofs \
+        -iso-level 3 \
+        -full-iso9660-filenames \
+        -volid "THISCLOUD" \
+        -output "$ISO_FILE" \
+        -eltorito-boot boot/vmlinuz \
+            -no-emul-boot \
+            -boot-load-size 4 \
+            -boot-info-table \
+        "$MEDIA" 2>&1 && {
+        echo "    ISO created with xorriso"
+    } || {
+        echo "    xorriso failed"
     }
 fi
 
