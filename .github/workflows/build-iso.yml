@@ -72,6 +72,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y squashfs-tools xorriso debootstrap genisoimage \
+            syslinux syslinux-common \
             build-essential flex bison bc libssl-dev libelf-dev cpio kmod
 
       - name: Determine version
