@@ -34,7 +34,7 @@ sudo debootstrap \
     --include=systemd,systemd-sysv,dbus,iproute2,iptables,iputils-ping,curl,kmod,udev,initramfs-tools \
     --include=sudo,vim,nano,less,psmisc,procps,ethtool \
     --include=net-tools,openssh-server,openssh-client,curl,wget \
-    --include=e2fsprogs,dosfstools,parted,gdisk,blkid \
+    --include=e2fsprogs,dosfstools,parted,gdisk,util-linux \
     "$SUITE" "$OUTPUT" http://deb.debian.org/debian
 
 echo "==> Installing kernel..."
