@@ -76,7 +76,8 @@ chmod +x "$MEDIA/install/installer.sh"
 echo "==> Installing ISOLINUX..."
 
 ISOLINUX_BIN=""
-for path in /usr/lib/ISOLINUX/isolinux.bin /usr/share/syslinux/isolinux.bin; do
+for path in /usr/lib/ISOLINUX/isolinux.bin /usr/share/syslinux/isolinux.bin \
+    /usr/lib/syslinux/bios/isolinux.bin /usr/share/isolinux/isolinux.bin; do
     if [ -f "$path" ]; then
         ISOLINUX_BIN="$path"
         break
@@ -85,7 +86,8 @@ done
 
 if [ -z "$ISOLINUX_BIN" ]; then
     echo "error: isolinux.bin not found"
-    echo "Install syslinux-common package"
+    echo "    Searched: /usr/lib/ISOLINUX/, /usr/share/syslinux/, /usr/lib/syslinux/bios/, /usr/share/isolinux/"
+    echo "    Install: sudo apt-get install isolinux syslinux syslinux-common"
     exit 1
 fi
 
